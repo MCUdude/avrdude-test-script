@@ -1,6 +1,8 @@
 #!/bin/sh
 
 declare -a pgm_and_target=(
+  "-cpowerdebugger_isp -B0.5 -patmega2560"
+  "-cpowerdebugger -B0.5 -patmega2560"
   "-cpkobn_updi -B1 -patmega3208"
   "-cpkobn_updi -B1 -patmega3209"
   "-cpkobn_updi -B1 -patmega4808"
@@ -34,8 +36,7 @@ do
 		# Memories that may or may not be present
 		USERSIG_SIZE=$(avrdude $p -cdryrun -qq -T 'part -m' | grep usersig | awk '{print $2}') # R/W
 
-
-		# Set and clear eesave fuse bit
+    # Set and clear eesave fuse bit
 		avrdude -qq $p \
 		-T "config eesave=1; config eesave=0"
 		# Read eesave fusebit
@@ -105,41 +106,43 @@ do
 			echo ❌ the_quick_brown_fox_${FLASH_SIZE}B.hex:a flash -T write/verify
 		fi
 
+		
 		# The quick brown fox -T eeprom
-		avrdude -qq $p \
-			-T "write eeprom test_files/the_quick_brown_fox_${EE_SIZE}B.hex:a"
-		if [ $? == 0 ]; then
+		OUTPUT=$(avrdude -qq $p -T "write eeprom test_files/the_quick_brown_fox_${EE_SIZE}B.hex:a" 2>&1)
+		if [[ $OUTPUT == '' ]]; then
 			echo ✅ the_quick_brown_fox_${EE_SIZE}B.hex:a eeprom -T write/verify
 		else
+		  echo $OUTPUT
 			echo ❌ the_quick_brown_fox_${EE_SIZE}B.hex:a eeprom -T write/verify
 		fi
 
 		# Lorem ipsum -T flash
-		avrdude -qq $p \
-			-T "write flash test_files/lorem_ipsum_${FLASH_SIZE}B.srec"
-		if [ $? == 0 ]; then
+		OUTPUT=$(avrdude -qq $p -T "write flash test_files/lorem_ipsum_${FLASH_SIZE}B.srec" 2>&1)
+		if [[ $OUTPUT == '' ]]; then
 			echo ✅ lorem_ipsum_${FLASH_SIZE}B.srec flash -T write/verify
 		else
+		  echo $OUTPUT
 			echo ❌ lorem_ipsum_${FLASH_SIZE}B.srec flash -T write/verify
 		fi
 
 		# Lorem ipsum -T eeprom
-		avrdude -qq $p \
-			-T "write eeprom test_files/lorem_ipsum_${EE_SIZE}B.srec"
-		if [ $? == 0 ]; then
+		OUTPUT=$(avrdude -qq $p -T "write eeprom test_files/lorem_ipsum_${EE_SIZE}B.srec" 2>&1)
+		if [[ $OUTPUT == '' ]]; then
 			echo ✅ lorem_ipsum_${EE_SIZE}B.srec eeprom -T write/verify
 		else
+			echo $OUTPUT
 			echo ❌ lorem_ipsum_${EE_SIZE}B.srec eeprom -T write/verify
 		fi
 	
 		# Raw test
-		avrdude -qq $p \
+		OUTPUT=$(avrdude -qq $p \
 			-T 'erase flash; write flash -512 0xc0cac01a 0xcafe "secret Coca .bin recipe"' \
 			-U flash:w:test_files/cola-vending-machine.raw \
-			-T 'write flash -1024 "Hello World"'
-		if [ $? == 0 ]; then
+			-T 'write flash -1024 "Hello World"' 2>&1)
+		if [[ $OUTPUT == '' ]]; then
 			echo ✅ cola-vending-machine.raw flash -T/-U write/verify
 		else
+		  echo $OUTPUT
 			echo ❌ cola-vending-machine.raw flash -T/-U write/verify
 		fi
 		
@@ -153,11 +156,11 @@ do
 		fi
 
 		# The five boxing wizards -T flash (writes to the first 1/8 and the last 1/8)
-		avrdude -qq $p \
-		  -T "write flash test_files/holes_the_five_boxing_wizards_${FLASH_SIZE}B.hex"
-		if [ $? == 0 ]; then
+		OUTPUT=$(avrdude -qq $p -T "write flash test_files/holes_the_five_boxing_wizards_${FLASH_SIZE}B.hex" 2>&1)
+		if [[ $OUTPUT == '' ]]; then
 			echo ✅ holes_the_five_boxing_wizards_${FLASH_SIZE}B.hex flash -T write
 		else
+		  echo $OUTPUT
 			echo ❌ holes_the_five_boxing_wizards_${FLASH_SIZE}B.hex flash -T write
 		fi
 
@@ -171,11 +174,11 @@ do
 		fi
 
 		# The five boxing wizards -T eeprom (writes to the first 1/8 and the last 1/8)
-		avrdude -qq $p \
-		  -T "write flash test_files/holes_the_five_boxing_wizards_${EE_SIZE}B.hex"
-		if [ $? == 0 ]; then
+		OUTPUT=$(avrdude -qq $p -T "write flash test_files/holes_the_five_boxing_wizards_${EE_SIZE}B.hex" 2>&1)
+		if [[ $OUTPUT == '' ]]; then
 			echo ✅ holes_the_five_boxing_wizards_${EE_SIZE}B.hex eeprom -T write
 		else
+		  echo $OUTPUT
 			echo ❌ holes_the_five_boxing_wizards_${EE_SIZE}B.hex eeprom -T write
 		fi
 
