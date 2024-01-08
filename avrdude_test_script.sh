@@ -83,7 +83,7 @@ while true; do
         FAIL=true
       fi
     
-      # Pack my box -U flash (writes to the first 1/8 and the last 1/8)
+      # Pack my box -U flash (writes to part 2/8 and 7/8  of the memory)
       avrdude -qq $p \
         -Uflash:w:test_files/holes_pack_my_box_${FLASH_SIZE}B.hex:a
       if [ $? == 0 ]; then
@@ -93,7 +93,7 @@ while true; do
         FAIL=true
       fi
 
-      # The five boxing wizards -T flash (writes to the first 1/8 and the last 1/8)
+      # The five boxing wizards -T flash (writes to part 2/8 and 7/8  of the memory)
       OUTPUT=$(avrdude -qq $p -T "write flash test_files/holes_the_five_boxing_wizards_${FLASH_SIZE}B.hex" 2>&1)
       if [[ $OUTPUT == '' ]]; then
         echo ✅ holes_the_five_boxing_wizards_${FLASH_SIZE}B.hex flash -T write
@@ -103,7 +103,7 @@ while true; do
         FAIL=true
       fi
 
-      # Pack my box -U eeprom (writes to the first 1/8 and the last 1/8)
+      # Pack my box -U eeprom (writes to part 2/8 and 7/8  of the memory)
       avrdude -qq $p \
         -Ueeprom:w:test_files/holes_pack_my_box_${EE_SIZE}B.hex:a
       if [ $? == 0 ]; then
@@ -113,7 +113,7 @@ while true; do
         FAIL=true
       fi
 
-      # The five boxing wizards -T eeprom (writes to the first 1/8 and the last 1/8)
+      # The five boxing wizards -T eeprom (writes to part 2/8 and 7/8  of the memory)
       OUTPUT=$(avrdude -qq $p -T "write flash test_files/holes_the_five_boxing_wizards_${EE_SIZE}B.hex" 2>&1)
       if [[ $OUTPUT == '' ]]; then
         echo ✅ holes_the_five_boxing_wizards_${EE_SIZE}B.hex eeprom -T write
