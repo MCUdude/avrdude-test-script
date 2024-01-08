@@ -125,8 +125,7 @@ while true; do
 
       # Write and verify random data to usersig if present
       if [[ $USERSIG_SIZE != '' ]]; then
-        avrdude -qq $p -T "erase usersig; write usersig test_files/random_data_${USERSIG_SIZE}B.bin"
-        avrdude -qq $p -Uusersig:r:test_files/usersig_dump_${USERSIG_SIZE}B.bin:r
+        avrdude -qq $p -T "erase usersig; write usersig test_files/random_data_${USERSIG_SIZE}B.bin" -Uusersig:r:test_files/usersig_dump_${USERSIG_SIZE}B.bin:r
         cmp test_files/random_data_${USERSIG_SIZE}B.bin test_files/usersig_dump_${USERSIG_SIZE}B.bin
         if [ $? == 0 ]; then
           echo ✅ random_data_${USERSIG_SIZE}B.bin usersig -T/-U write/read
