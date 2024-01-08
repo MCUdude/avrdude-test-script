@@ -4,7 +4,6 @@ avrdude_bin=avrdude
 avrdude_conf=''     # Add -C before the path to the user specified avrdude.conf file
 
 declare -a pgm_and_target=(
-  "-cdryrun -patmega2560"
   "-cpowerdebugger_isp -B0.5 -patmega2560"
   "-cpowerdebugger -B0.5 -patmega2560"
   "-cpkobn_updi -B1 -patmega3208"
@@ -42,8 +41,74 @@ while true; do
       # Memories that may or may not be present
       USERSIG_SIZE=$($avrdude_bin $avrdude_conf $p -cdryrun -qq -T 'part -m' | grep usersig | awk '{print $2}') # R/W
 
+      # Set and clear eesave fuse bit
+      $avrdude_bin $avrdude_conf -qq $p -T 'config eesave=1; config eesave=0'
+      # Read eesave fusebit
+      eesave=$($avrdude_bin $avrdude_conf -qq $p -T 'config eesave' | awk '{print $4}')
+      if [[ $eesave == "0" ]]; then
+        echo ✅ eesave fuse bit set and cleared
+      else
+        echo ❌ eesave fuse bit not cleared
+      fi
 
-    
+      # The quick brown fox -U flash
+      $avrdude_bin $avrdude_conf -qq $p \
+      -Uflash:w:test_files/the_quick_brown_fox_${FLASH_SIZE}B.hex \
+      -Uflash:v:test_files/the_quick_brown_fox_${FLASH_SIZE}B.hex
+      if [ $? == 0 ]; then
+        echo ✅ the_quick_brown_fox_${FLASH_SIZE}B.hex flash -U write/verify
+      else
+        echo ❌ the_quick_brown_fox_${FLASH_SIZE}B.hex flash -U write/verify
+      fi
+
+      # The quick brown fox -U eeprom
+      $avrdude_bin $avrdude_conf -qq $p \
+      -Ueeprom:w:test_files/the_quick_brown_fox_${EE_SIZE}B.hex \
+      -Ueeprom:v:test_files/the_quick_brown_fox_${EE_SIZE}B.hex
+      if [ $? == 0 ]; then
+        echo ✅ the_quick_brown_fox_${EE_SIZE}B.hex eeprom -U write/verify
+      else
+        echo ❌ the_quick_brown_fox_${EE_SIZE}B.hex eeprom -U write/verify
+      fi
+
+      # Lorem ipsum -U flash
+      $avrdude_bin $avrdude_conf -qq $p \
+         -Uflash:w:test_files/lorem_ipsum_${FLASH_SIZE}B.srec \
+         -Uflash:v:test_files/lorem_ipsum_${FLASH_SIZE}B.srec
+      if [ $? == 0 ]; then
+        echo ✅ lorem_ipsum_${FLASH_SIZE}B.srec flash -U write/verify
+      else
+        echo ❌ lorem_ipsum_${FLASH_SIZE}B.hex flash -U write/verify
+      fi
+
+      # Lorem ipsum -U eeprom
+      $avrdude_bin $avrdude_conf -qq $p \
+         -Ueeprom:w:test_files/lorem_ipsum_${EE_SIZE}B.srec \
+         -Ueeprom:v:test_files/lorem_ipsum_${EE_SIZE}B.srec
+      if [ $? == 0 ]; then
+        echo ✅ lorem_ipsum_${EE_SIZE}B.srec eeprom -U write/verify
+      else
+        echo ❌ lorem_ipsum_${EE_SIZE}B.srec eeprom -U write/verify
+      fi
+
+      # Chip erase and -U eeprom 0xff fill
+      $avrdude_bin $avrdude_conf -qq $p -e \
+        -Ueeprom:w:test_files/0xff_${EE_SIZE}B.hex \
+        -Ueeprom:v:test_files/0xff_${EE_SIZE}B.hex
+      if [ $? == 0 ]; then
+        echo ✅ 0xff_${EE_SIZE}B.hex eeprom -U write/verify
+      else
+        echo ❌ 0xff_${EE_SIZE}B.hex eeprom -U write/verify
+      fi
+
+      # The quick brown fox -T flash
+      OUTPUT=$($avrdude_bin $avrdude_conf -qq $p -T "write flash test_files/the_quick_brown_fox_${FLASH_SIZE}B.hex:a" 2>&1)
+      if [[ $OUTPUT == '' ]]; then
+        echo ✅ the_quick_brown_fox_${FLASH_SIZE}B.hex:a flash -T write/verify
+      else
+        echo ❌ the_quick_brown_fox_${FLASH_SIZE}B.hex:a flash -T write/verify
+      fi
+
       # The quick brown fox -T eeprom
       OUTPUT=$($avrdude_bin $avrdude_conf -qq $p -T "write eeprom test_files/the_quick_brown_fox_${EE_SIZE}B.hex:a" 2>&1)
       if [[ $OUTPUT == '' ]]; then
@@ -86,7 +151,7 @@ while true; do
         echo ❌ cola-vending-machine.raw flash -T/-U write/verify
         FAIL=true
       fi
-    
+
       # Pack my box -U flash (writes to part 2/8 and 7/8  of the memory)
       $avrdude_bin $avrdude_conf -qq $p \
         -Uflash:w:test_files/holes_pack_my_box_${FLASH_SIZE}B.hex:a
