@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 avrdude_bin=avrdude
 avrdude_conf=''     # Add -C before the path to the user specified avrdude.conf file
