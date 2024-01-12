@@ -2,7 +2,7 @@
 
 avrdude_bin=avrdude
 avrdude_conf=''     # Add -C before the path to the user specified avrdude.conf file
-delay=2             # Some programmers needs a delay between each Avrdude call. Tune this delay if necessary
+delay=4             # Some programmers needs a delay between each Avrdude call. Tune this delay if necessary
 
 declare -a pgm_and_target=(
   "-cpkobn_updi -B1 -patmega3208"
@@ -42,6 +42,7 @@ while true; do
       USERSIG_SIZE=$($avrdude_bin $avrdude_conf $p -cdryrun -qq -T 'part -m' | grep usersig | awk '{print $2}') # R/W
 
       # Set, clear and read eesave fusebit
+      sleep $delay
       command="$avrdude_bin $avrdude_conf -qq $p -T 'config eesave=1; config eesave=0; config eesave'"
       eesave=$(eval $command | awk '{print $4}')
       if [[ $eesave == "0" ]]; then
