@@ -22,12 +22,12 @@ declare -a pgm_and_target=(
   "-cxplainedpro_pdi -B0.5 -patxmega128a1u"
   "-cxplainedpro -B4MHz -patmega256rfr2"
 )
+arraylength=${#pgm_and_target[@]}
 
-while true; do
-  for p in "${pgm_and_target[@]}"
+  for (( p=0; p<${arraylength}; p++ ))#(( c=1; c<=5; c++ ))
   do
     #read -p "Prepare \"$p\" and press enter to continue"
-    echo "Prepare \"$p\" and press 'enter' or 'space' to continue. Press any other key to skip"
+    echo "Prepare \"${pgm_and_target[$p]}\" and press 'enter' or 'space' to continue. Press any other key to skip"
     read -n1 -s -r -p $'' key
     sleep 0.25
   
@@ -35,15 +35,15 @@ while true; do
       FAIL=false
   
       # Get flash and EEPROM size in bytes and make sure the numbers are in dec form
-      FLASH_SIZE=$($avrdude_bin $avrdude_conf $p -cdryrun -qq -T 'part -m' | grep flash | awk '{print $2}')
-      EE_SIZE=$($avrdude_bin $avrdude_conf $p -cdryrun -qq -T 'part -m' | grep eeprom | awk '{print $2}')
+      FLASH_SIZE=$($avrdude_bin $avrdude_conf ${pgm_and_target[$p]} -cdryrun -qq -T 'part -m' | grep flash | awk '{print $2}')
+      EE_SIZE=$($avrdude_bin $avrdude_conf ${pgm_and_target[$p]} -cdryrun -qq -T 'part -m' | grep eeprom | awk '{print $2}')
     
       # Memories that may or may not be present
-      USERSIG_SIZE=$($avrdude_bin $avrdude_conf $p -cdryrun -qq -T 'part -m' | grep usersig | awk '{print $2}') # R/W
+      USERSIG_SIZE=$($avrdude_bin $avrdude_conf ${pgm_and_target[$p]} -cdryrun -qq -T 'part -m' | grep usersig | awk '{print $2}') # R/W
 
       # Set, clear and read eesave fusebit
       sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq $p -T 'config eesave=1; config eesave=0; config eesave'"
+      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -T 'config eesave=1; config eesave=0; config eesave'"
       eesave=$(eval $command | awk '{print $4}')
       if [[ $eesave == "0" ]]; then
         echo ✅ eesave fuse bit set, cleared and verified
@@ -55,7 +55,7 @@ while true; do
 
       # The quick brown fox -U flash
       sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq $p \
+      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
       -Uflash:w:test_files/the_quick_brown_fox_${FLASH_SIZE}B.hex \
       -Uflash:v:test_files/the_quick_brown_fox_${FLASH_SIZE}B.hex"
       eval $command
@@ -69,7 +69,7 @@ while true; do
 
       # The quick brown fox -U eeprom
       sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq $p \
+      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
       -Ueeprom:w:test_files/the_quick_brown_fox_${EE_SIZE}B.hex \
       -Ueeprom:v:test_files/the_quick_brown_fox_${EE_SIZE}B.hex"
       eval $command
@@ -83,7 +83,7 @@ while true; do
 
       # Lorem ipsum -U flash
       sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq $p \
+      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
       -Uflash:w:test_files/lorem_ipsum_${FLASH_SIZE}B.srec \
       -Uflash:v:test_files/lorem_ipsum_${FLASH_SIZE}B.srec"
       eval $command
@@ -97,7 +97,7 @@ while true; do
 
       # Lorem ipsum -U eeprom
       sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq $p \
+      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
       -Ueeprom:w:test_files/lorem_ipsum_${EE_SIZE}B.srec \
       -Ueeprom:v:test_files/lorem_ipsum_${EE_SIZE}B.srec"
       eval $command
@@ -111,7 +111,7 @@ while true; do
 
       # Chip erase and -U eeprom 0xff fill
       sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq $p -e \
+      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -e \
       -Ueeprom:w:test_files/0xff_${EE_SIZE}B.hex \
       -Ueeprom:v:test_files/0xff_${EE_SIZE}B.hex"
       eval $command
@@ -125,7 +125,7 @@ while true; do
 
       # The quick brown fox -T flash
       sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq $p \
+      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
       -T \"write flash test_files/the_quick_brown_fox_${FLASH_SIZE}B.hex:a\""
       OUTPUT=$(eval $command 2>&1)
       if [[ $OUTPUT == '' ]]; then
@@ -138,7 +138,7 @@ while true; do
 
       # The quick brown fox -T eeprom
       sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq $p \
+      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
       -T \"write eeprom test_files/the_quick_brown_fox_${EE_SIZE}B.hex:a\""
       OUTPUT=$(eval $command 2>&1)
       if [[ $OUTPUT == '' ]]; then
@@ -151,7 +151,7 @@ while true; do
 
       # Lorem ipsum -T flash
       sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq $p \
+      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
       -T \"write flash test_files/lorem_ipsum_${FLASH_SIZE}B.srec\""
       OUTPUT=$(eval $command 2>&1)
       if [[ $OUTPUT == '' ]]; then
@@ -165,7 +165,7 @@ while true; do
 
       # Lorem ipsum -T eeprom
       sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq $p \
+      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
       -T \"write eeprom test_files/lorem_ipsum_${EE_SIZE}B.srec\""
       OUTPUT=$(eval $command 2>&1)
       if [[ $OUTPUT == '' ]]; then
@@ -178,7 +178,7 @@ while true; do
 
       # Raw test
       sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq $p \
+      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
       -T 'erase flash; write flash -512 0xc0cac01a 0xcafe \"secret Coca .bin recipe\"' \
       -U flash:w:test_files/cola-vending-machine.raw \
       -T 'write flash -1024 \"Hello World\"'"
@@ -193,7 +193,7 @@ while true; do
 
       # Pack my box -U flash (writes to part 2/8 and 7/8  of the memory)
       sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq $p \
+      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
       -Uflash:w:test_files/holes_pack_my_box_${FLASH_SIZE}B.hex:a"
       eval $command
       if [ $? == 0 ]; then
@@ -206,7 +206,7 @@ while true; do
 
       # The five boxing wizards -T flash (writes to part 2/8 and 7/8  of the memory)
       sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq $p \
+      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
       -T \"write flash test_files/holes_the_five_boxing_wizards_${FLASH_SIZE}B.hex\""
       OUTPUT=$(eval $command 2>&1)
       if [[ $OUTPUT == '' ]]; then
@@ -219,7 +219,7 @@ while true; do
 
       # Pack my box -U eeprom (writes to part 2/8 and 7/8  of the memory)
       sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq $p \
+      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
       -Ueeprom:w:test_files/holes_pack_my_box_${EE_SIZE}B.hex:a"
       eval $command
       if [ $? == 0 ]; then
@@ -232,8 +232,8 @@ while true; do
 
       # The five boxing wizards -T eeprom (writes to part 2/8 and 7/8  of the memory)
       sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq $p \
-      -T \"write flash test_files/holes_the_five_boxing_wizards_${EE_SIZE}B.hex\""
+      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
+      -T \"write eeprom test_files/holes_the_five_boxing_wizards_${EE_SIZE}B.hex\""
       OUTPUT=$(eval $command 2>&1)
       if [[ $OUTPUT == '' ]]; then
         echo ✅ holes_the_five_boxing_wizards_${EE_SIZE}B.hex eeprom -T write
@@ -246,7 +246,7 @@ while true; do
       # Write and verify random data to usersig if present
       sleep $delay
       if [[ $USERSIG_SIZE != '' ]]; then
-        command="$avrdude_bin $avrdude_conf -qq $p \
+        command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
         -T \"erase usersig; write usersig test_files/random_data_${USERSIG_SIZE}B.bin\" \
         -Uusersig:r:test_files/usersig_dump_${USERSIG_SIZE}B.bin:r"
         comp="cmp test_files/random_data_${USERSIG_SIZE}B.bin test_files/usersig_dump_${USERSIG_SIZE}B.bin"
@@ -269,10 +269,10 @@ while true; do
 
       if [ $FAIL == true ]; then
         echo ''
-        read -rep "One or more avrdude \"$p\" tests failed. Do you want to retry this particular test? (y/n): " choice
+        read -rep "One or more avrdude \"${pgm_and_target[$p]}\" tests failed. Do you want to retry this particular test? (y/n): " choice
         case "$choice" in
           [yY])
-            continue 2 # Re-run the same for-loop iterator
+            p=$p-1; # Re-run the same for-loop iterator
             ;;
           *)
             # Continue with the next hardware setup in the list
@@ -281,8 +281,4 @@ while true; do
       fi
 
     fi #key
-
   done #for
-
-  break
-done #while
