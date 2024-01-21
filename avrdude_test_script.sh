@@ -92,15 +92,17 @@ $avrdude_bin -v 2>&1 | grep Version | cut -f2- -d: | sed s/Version/version/
       USERSIG_SIZE=$($avrdude_bin $avrdude_conf ${pgm_and_target[$p]} -cdryrun -qq -T 'part -m' 2>/dev/null | grep usersig | awk '{print $2}') # R/W
 
       # Set, clear and read eesave fusebit
-      sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -T 'config eesave=1; config eesave=0; config eesave'"
-      eesave=$(eval $command | awk '{print $4}')
-      if [[ $eesave == "0" ]]; then
-        echo ✅ eesave fuse bit set, cleared and verified
-      else
-        echo ❌ eesave fuse bit not cleared
-        echo ➡️ command \"$command\" failed
-        FAIL=true
+      if [ -n "$EE_SIZE" ]; then
+        sleep $delay
+        command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -T 'config eesave=1; config eesave=0; config eesave'"
+        eesave=$(eval $command | awk '{print $4}')
+        if [[ $eesave == "0" ]]; then
+          echo ✅ eesave fuse bit set, cleared and verified
+        else
+          echo ❌ eesave fuse bit not cleared
+          echo ➡️ command \"$command\" failed
+          FAIL=true
+        fi
       fi
 
       # The quick brown fox -U flash
@@ -118,17 +120,19 @@ $avrdude_bin -v 2>&1 | grep Version | cut -f2- -d: | sed s/Version/version/
       fi
 
       # The quick brown fox -U eeprom
-      sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-      -Ueeprom:w:test_files/the_quick_brown_fox_${EE_SIZE}B.hex \
-      -Ueeprom:v:test_files/the_quick_brown_fox_${EE_SIZE}B.hex"
-      eval $command
-      if [ $? == 0 ]; then
-        echo ✅ the_quick_brown_fox_${EE_SIZE}B.hex eeprom -U write/verify
-      else
-        echo ❌ the_quick_brown_fox_${EE_SIZE}B.hex eeprom -U write/verify
-        echo ➡️ command \"$command\" failed
-        FAIL=true
+      if [ -n "$EE_SIZE" ]; then
+        sleep $delay
+        command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
+        -Ueeprom:w:test_files/the_quick_brown_fox_${EE_SIZE}B.hex \
+        -Ueeprom:v:test_files/the_quick_brown_fox_${EE_SIZE}B.hex"
+        eval $command
+        if [ $? == 0 ]; then
+          echo ✅ the_quick_brown_fox_${EE_SIZE}B.hex eeprom -U write/verify
+        else
+          echo ❌ the_quick_brown_fox_${EE_SIZE}B.hex eeprom -U write/verify
+          echo ➡️ command \"$command\" failed
+          FAIL=true
+        fi
       fi
 
       # Lorem ipsum -U flash
@@ -146,31 +150,35 @@ $avrdude_bin -v 2>&1 | grep Version | cut -f2- -d: | sed s/Version/version/
       fi
 
       # Lorem ipsum -U eeprom
-      sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-      -Ueeprom:w:test_files/lorem_ipsum_${EE_SIZE}B.srec \
-      -Ueeprom:v:test_files/lorem_ipsum_${EE_SIZE}B.srec"
-      eval $command
-      if [ $? == 0 ]; then
-        echo ✅ lorem_ipsum_${EE_SIZE}B.srec eeprom -U write/verify
-      else
-        echo ❌ lorem_ipsum_${EE_SIZE}B.srec eeprom -U write/verify
-        echo ➡️ command \"$command\" failed
-        FAIL=true
+      if [ -n "$EE_SIZE" ]; then
+        sleep $delay
+        command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
+        -Ueeprom:w:test_files/lorem_ipsum_${EE_SIZE}B.srec \
+        -Ueeprom:v:test_files/lorem_ipsum_${EE_SIZE}B.srec"
+        eval $command
+        if [ $? == 0 ]; then
+          echo ✅ lorem_ipsum_${EE_SIZE}B.srec eeprom -U write/verify
+        else
+          echo ❌ lorem_ipsum_${EE_SIZE}B.srec eeprom -U write/verify
+          echo ➡️ command \"$command\" failed
+          FAIL=true
+        fi
       fi
 
       # Chip erase and -U eeprom 0xff fill
-      sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -e \
-      -Ueeprom:w:test_files/0xff_${EE_SIZE}B.hex \
-      -Ueeprom:v:test_files/0xff_${EE_SIZE}B.hex"
-      eval $command
-      if [ $? == 0 ]; then
-        echo ✅ 0xff_${EE_SIZE}B.hex eeprom -U write/verify
-      else
-        echo ❌ 0xff_${EE_SIZE}B.hex eeprom -U write/verify
-        echo ➡️ command \"$command\" failed
-        FAIL=true
+      if [ -n "$EE_SIZE" ]; then
+        sleep $delay
+        command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -e \
+        -Ueeprom:w:test_files/0xff_${EE_SIZE}B.hex \
+        -Ueeprom:v:test_files/0xff_${EE_SIZE}B.hex"
+        eval $command
+        if [ $? == 0 ]; then
+          echo ✅ 0xff_${EE_SIZE}B.hex eeprom -U write/verify
+        else
+          echo ❌ 0xff_${EE_SIZE}B.hex eeprom -U write/verify
+          echo ➡️ command \"$command\" failed
+          FAIL=true
+        fi
       fi
 
       # The quick brown fox -T flash
@@ -187,16 +195,18 @@ $avrdude_bin -v 2>&1 | grep Version | cut -f2- -d: | sed s/Version/version/
       fi
 
       # The quick brown fox -T eeprom
-      sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-      -T \"write eeprom test_files/the_quick_brown_fox_${EE_SIZE}B.hex:a\""
-      OUTPUT=$(eval $command 2>&1)
-      if [[ $OUTPUT == '' ]]; then
-        echo ✅ the_quick_brown_fox_${EE_SIZE}B.hex:a eeprom -T write/verify
-      else
-        echo ❌ the_quick_brown_fox_${EE_SIZE}B.hex:a eeprom -T write/verify
-        echo ➡️ command \"$command\" failed
-        FAIL=true
+      if [ -n "$EE_SIZE" ]; then
+        sleep $delay
+        command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
+        -T \"write eeprom test_files/the_quick_brown_fox_${EE_SIZE}B.hex:a\""
+        OUTPUT=$(eval $command 2>&1)
+        if [[ $OUTPUT == '' ]]; then
+          echo ✅ the_quick_brown_fox_${EE_SIZE}B.hex:a eeprom -T write/verify
+        else
+          echo ❌ the_quick_brown_fox_${EE_SIZE}B.hex:a eeprom -T write/verify
+          echo ➡️ command \"$command\" failed
+          FAIL=true
+        fi
       fi
 
       # Lorem ipsum -T flash
@@ -214,16 +224,18 @@ $avrdude_bin -v 2>&1 | grep Version | cut -f2- -d: | sed s/Version/version/
       fi
 
       # Lorem ipsum -T eeprom
-      sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-      -T \"write eeprom test_files/lorem_ipsum_${EE_SIZE}B.srec\""
-      OUTPUT=$(eval $command 2>&1)
-      if [[ $OUTPUT == '' ]]; then
-        echo ✅ lorem_ipsum_${EE_SIZE}B.srec eeprom -T write/verify
-      else
-        echo ❌ lorem_ipsum_${EE_SIZE}B.srec eeprom -T write/verify
-        echo ➡️ command \"$command\" failed
-        FAIL=true
+      if [ -n "$EE_SIZE" ]; then
+        sleep $delay
+        command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
+        -T \"write eeprom test_files/lorem_ipsum_${EE_SIZE}B.srec\""
+        OUTPUT=$(eval $command 2>&1)
+        if [[ $OUTPUT == '' ]]; then
+          echo ✅ lorem_ipsum_${EE_SIZE}B.srec eeprom -T write/verify
+        else
+          echo ❌ lorem_ipsum_${EE_SIZE}B.srec eeprom -T write/verify
+          echo ➡️ command \"$command\" failed
+          FAIL=true
+        fi
       fi
 
       if [[ $FLASH_SIZE -ge 2048 ]]; then
@@ -270,34 +282,38 @@ $avrdude_bin -v 2>&1 | grep Version | cut -f2- -d: | sed s/Version/version/
       fi
 
       # Pack my box -U eeprom (writes to part 2/8 and 7/8  of the memory)
-      sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-      -Ueeprom:w:test_files/holes_pack_my_box_${EE_SIZE}B.hex:a"
-      eval $command
-      if [ $? == 0 ]; then
-        echo ✅ holes_pack_my_box_${EE_SIZE}B.hex:a eeprom -U write
-      else
-        echo ❌ holes_pack_my_box_${EE_SIZE}B.hex:a eeprom -U write
-        echo ➡️ command \"$command\" failed
-        FAIL=true
+      if [ -n "$EE_SIZE" ]; then
+        sleep $delay
+        command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
+        -Ueeprom:w:test_files/holes_pack_my_box_${EE_SIZE}B.hex:a"
+        eval $command
+        if [ $? == 0 ]; then
+          echo ✅ holes_pack_my_box_${EE_SIZE}B.hex:a eeprom -U write
+        else
+          echo ❌ holes_pack_my_box_${EE_SIZE}B.hex:a eeprom -U write
+          echo ➡️ command \"$command\" failed
+          FAIL=true
+        fi
       fi
 
       # The five boxing wizards -T eeprom (writes to part 2/8 and 7/8  of the memory)
-      sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-      -T \"write eeprom test_files/holes_the_five_boxing_wizards_${EE_SIZE}B.hex\""
-      OUTPUT=$(eval $command 2>&1)
-      if [[ $OUTPUT == '' ]]; then
-        echo ✅ holes_the_five_boxing_wizards_${EE_SIZE}B.hex eeprom -T write
-      else
-        echo ❌ holes_the_five_boxing_wizards_${EE_SIZE}B.hex eeprom -T write
-        echo ➡️ command \"$command\" failed
-        FAIL=true
+      if [ -n "$EE_SIZE" ]; then
+        sleep $delay
+        command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
+        -T \"write eeprom test_files/holes_the_five_boxing_wizards_${EE_SIZE}B.hex\""
+        OUTPUT=$(eval $command 2>&1)
+        if [[ $OUTPUT == '' ]]; then
+          echo ✅ holes_the_five_boxing_wizards_${EE_SIZE}B.hex eeprom -T write
+        else
+          echo ❌ holes_the_five_boxing_wizards_${EE_SIZE}B.hex eeprom -T write
+          echo ➡️ command \"$command\" failed
+          FAIL=true
+        fi
       fi
 
       # Write and verify random data to usersig if present
       sleep $delay
-      if [[ $USERSIG_SIZE != '' ]]; then
+      if [ -n "$USERSIG_SIZE" ]; then
         command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
         -T \"erase usersig; write usersig test_files/random_data_${USERSIG_SIZE}B.bin\" \
         -Uusersig:r:test_files/usersig_dump_${USERSIG_SIZE}B.bin:r"
