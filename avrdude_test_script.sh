@@ -1,32 +1,82 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-avrdude_bin=avrdude
-avrdude_conf=''     # Add -C before the path to the user specified avrdude.conf file
-delay=4             # Some programmers needs a delay between each Avrdude call. Tune this delay if necessary
+progname=avrdude_test_script.sh
 
-declare -a pgm_and_target=(
-  "-cpkobn_updi -B1 -patmega3208"
-  "-cpkobn_updi -B1 -patmega3209"
-  "-cpkobn_updi -B1 -patmega4808"
-  "-cjtag2updi -patmega4809 -Pusb:2341:0058 -r"
-  "-cpkobn_updi -B1 -pattiny3217"
-  "-cpkobn_updi -B1 -pavr128da48"
-  "-cpkobn_updi -B1 -pavr128db48"
-  "-cpkobn_updi -B1 -pavr64dd32"
-  "-cpkobn_updi -B1 -pavr64ea48"
-  "-cpkobn_updi -B1 -pavr16eb32"
-  "-cxplainedmini_isp -patmega328pb"
-  "-cxplainedmini_updi -pattiny1616"
-  "-cxplainedmini_updi -pattiny3217"
-  "-cxplainedpro_updi -B1 -pattiny817"
-  "-cxplainedpro_pdi -B0.5 -patxmega128a1u"
-  "-cxplainedpro -B4MHz -patmega256rfr2"
-)
+avrdude_conf=''                 # Configuration for every run, eg, '-C path_to_avrdude_conf'
+delay=4                         # Some programmers need a delay between Avrdude calls
+avrdude_bin=avrdude             # Executable
+declare -a pgm_and_target=()    # Array with test option strings, eg, "-c dryrun -p m328p"
+
+Usage() {
+cat <<END
+Syntax: $progname {<opts>}
+Function: test avrdude for certain programmer and part combinations
+Options:
+    -c <configuration spec>     additional configuration options used for all runs
+    -d <sec>                    delay between test commands (default $delay seconds)
+    -e <avrdude path>           set path of avrdude executable (default $avrdude_bin)
+    -p <programmer/part specs>  can be used multiple times, overrides default tests
+    -? or -h                    show this help text
+Example:
+    \$ $progname -d 0 -p "-c dryrun -p t13" -p "-c dryrun -p m4809"
+END
+}
+
+while getopts ":\?hc:d:e:p:" opt; do
+  case ${opt} in
+    c) avrdude_conf="$OPTARG"
+        ;;
+    d) delay="$OPTARG"
+        ;;
+    e) avrdude_bin="$OPTARG"
+        ;;
+    p) pgm_and_target+=("$OPTARG")
+        ;;
+    --) shift;
+        break
+        ;;
+   [h?])
+       Usage; exit 0
+        ;;
+   \?) echo "Invalid option: -$OPTARG" 1>&2
+       Usage; exit 1
+        ;;
+   : ) echo "Invalid option: -$OPTARG requires an argument" 1>&2
+       Usage; exit 1
+       ;;
+  esac
+done
+shift $((OPTIND -1))
+
+if [[ ${#pgm_and_target[@]} -eq 0 ]]; then
+  # Default tests in absence of -p
+  pgm_and_target+=(
+    "-cpkobn_updi -B1 -patmega3208"
+    "-cpkobn_updi -B1 -patmega3209"
+    "-cpkobn_updi -B1 -patmega4808"
+    "-cjtag2updi -patmega4809 -Pusb:2341:0058 -r"
+    "-cpkobn_updi -B1 -pattiny3217"
+    "-cpkobn_updi -B1 -pavr128da48"
+    "-cpkobn_updi -B1 -pavr128db48"
+    "-cpkobn_updi -B1 -pavr64dd32"
+    "-cpkobn_updi -B1 -pavr64ea48"
+    "-cpkobn_updi -B1 -pavr16eb32"
+    "-cxplainedmini_isp -patmega328pb"
+    "-cxplainedmini_updi -pattiny1616"
+    "-cxplainedmini_updi -pattiny3217"
+    "-cxplainedpro_updi -B1 -pattiny817"
+    "-cxplainedpro_pdi -B0.5 -patxmega128a1u"
+    "-cxplainedpro -B4MHz -patmega256rfr2"
+  )
+fi
+
 arraylength=${#pgm_and_target[@]}
+echo -n "Testing $avrdude_bin"
+$avrdude_bin -v 2>&1 | grep Version | cut -f2- -d: | sed s/Version/version/
 
-  for (( p=0; p<${arraylength}; p++ ))#(( c=1; c<=5; c++ ))
+  for (( p=0; p<${arraylength}; p++ ))
   do
-    #read -p "Prepare \"$p\" and press enter to continue"
+    # read -p "Prepare \"$p\" and press enter to continue"
     echo "Prepare \"${pgm_and_target[$p]}\" and press 'enter' or 'space' to continue. Press any other key to skip"
     read -n1 -s -r -p $'' key
     sleep 0.25
@@ -35,11 +85,11 @@ arraylength=${#pgm_and_target[@]}
       FAIL=false
   
       # Get flash and EEPROM size in bytes and make sure the numbers are in dec form
-      FLASH_SIZE=$($avrdude_bin $avrdude_conf ${pgm_and_target[$p]} -cdryrun -qq -T 'part -m' | grep flash | awk '{print $2}')
-      EE_SIZE=$($avrdude_bin $avrdude_conf ${pgm_and_target[$p]} -cdryrun -qq -T 'part -m' | grep eeprom | awk '{print $2}')
+      FLASH_SIZE=$($avrdude_bin $avrdude_conf ${pgm_and_target[$p]} -cdryrun -qq -T 'part -m' 2>/dev/null | grep flash | awk '{print $2}')
+      EE_SIZE=$($avrdude_bin $avrdude_conf ${pgm_and_target[$p]} -cdryrun -qq -T 'part -m' 2>/dev/null | grep eeprom | awk '{print $2}')
     
       # Memories that may or may not be present
-      USERSIG_SIZE=$($avrdude_bin $avrdude_conf ${pgm_and_target[$p]} -cdryrun -qq -T 'part -m' | grep usersig | awk '{print $2}') # R/W
+      USERSIG_SIZE=$($avrdude_bin $avrdude_conf ${pgm_and_target[$p]} -cdryrun -qq -T 'part -m' 2>/dev/null | grep usersig | awk '{print $2}') # R/W
 
       # Set, clear and read eesave fusebit
       sleep $delay
@@ -176,19 +226,21 @@ arraylength=${#pgm_and_target[@]}
         FAIL=true
       fi
 
-      # Raw test
-      sleep $delay
-      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-      -T 'erase flash; write flash -512 0xc0cac01a 0xcafe \"secret Coca .bin recipe\"' \
-      -U flash:w:test_files/cola-vending-machine.raw \
-      -T 'write flash -1024 \"Hello World\"'"
-      OUTPUT=$(eval $command 2>&1)
-      if [[ $OUTPUT == '' ]]; then
-        echo ✅ cola-vending-machine.raw flash -T/-U write/verify
-      else
-        echo ❌ cola-vending-machine.raw flash -T/-U write/verify
-        echo ➡️ command \"$command\" failed
-        FAIL=true
+      if [[ $FLASH_SIZE -ge 2048 ]]; then
+        # Raw test
+        sleep $delay
+        command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
+        -T 'erase flash; write flash -512 0xc0cac01a 0xcafe \"secret Coca .bin recipe\"' \
+        -U flash:w:test_files/cola-vending-machine.raw \
+        -T 'write flash -1024 \"Hello World\"'"
+        OUTPUT=$(eval $command 2>&1)
+        if [[ $OUTPUT == '' ]]; then
+          echo ✅ cola-vending-machine.raw flash -T/-U write/verify
+        else
+          echo ❌ cola-vending-machine.raw flash -T/-U write/verify
+          echo ➡️ command \"$command\" failed
+          FAIL=true
+        fi
       fi
 
       # Pack my box -U flash (writes to part 2/8 and 7/8  of the memory)
@@ -249,7 +301,7 @@ arraylength=${#pgm_and_target[@]}
         command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
         -T \"erase usersig; write usersig test_files/random_data_${USERSIG_SIZE}B.bin\" \
         -Uusersig:r:test_files/usersig_dump_${USERSIG_SIZE}B.bin:r"
-        comp="cmp test_files/random_data_${USERSIG_SIZE}B.bin test_files/usersig_dump_${USERSIG_SIZE}B.bin"
+        comp="cmp -s test_files/random_data_${USERSIG_SIZE}B.bin test_files/usersig_dump_${USERSIG_SIZE}B.bin"
         eval $command
         avrduderv=$?
         eval $comp
