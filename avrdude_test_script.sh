@@ -92,14 +92,25 @@ $avrdude_bin -v 2>&1 | grep Version | cut -f2- -d: | sed s/Version/version/
       USERSIG_SIZE=$($avrdude_bin $avrdude_conf ${pgm_and_target[$p]} -cdryrun -qq -T 'part -m' 2>/dev/null | grep usersig | awk '{print $2}') # R/W
 
       # Set, clear and read eesave fusebit
+      sleep $delay
       if [ -n "$EE_SIZE" ]; then
-        sleep $delay
         command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -T 'config eesave=1; config eesave=0; config eesave'"
         eesave=$(eval $command | awk '{print $4}')
         if [[ $eesave == "0" ]]; then
           echo ✅ eesave fuse bit set, cleared and verified
         else
           echo ❌ eesave fuse bit not cleared
+          echo ➡️ command \"$command\" failed
+          FAIL=true
+        fi
+      # If the part doesn't have EEPROM, set, clear and read the wdton fusebit instead
+      else
+        command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -T 'config wdton=1; config wdton=0; config wdton'"
+        wdton=$(eval $command | awk '{print $4}')
+        if [[ $wdton == "0" ]]; then
+          echo ✅ wdton fuse bit set, cleared and verified
+        else
+          echo ❌ wdton fuse bit not cleared
           echo ➡️ command \"$command\" failed
           FAIL=true
         fi
