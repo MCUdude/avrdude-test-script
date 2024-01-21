@@ -1,5 +1,5 @@
 #!/bin/bash
-for i in 16 32 64 128 256 512 768 1024 2048 4096 8192 16384 32768 36864 49152 65536 131072 139264 262144 270336
+for i in 16 32 64 128 256 512 768 1024 2048 4096 8192 10240 16384 20480 32768 36864 49152 65536 69632 131072 139264 262144 270336 401408
 do
   srec_cat -generate 0x00 $i -repeat-data 0xff -o 0xff_${i}B.hex -Intel
   srec_cat -generate 0x00 $i -repeat-string "LOREM IPSUM DOLOR SIT AMET. " -o lorem_ipsum_${i}B.srec
