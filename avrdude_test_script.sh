@@ -6,6 +6,7 @@ avrdude_conf=''                 # Configuration for every run, eg, '-C path_to_a
 delay=4                         # Some programmers need a delay between Avrdude calls
 avrdude_bin=avrdude             # Executable
 declare -a pgm_and_target=()    # Array with test option strings, eg, "-c dryrun -p m328p"
+skip_eeprom=0                   # Do not skip EEPROM tests for bootloaders by default
 
 Usage() {
 cat <<END
@@ -16,13 +17,14 @@ Options:
     -d <sec>                    delay between test commands (default $delay seconds)
     -e <avrdude path>           set path of avrdude executable (default $avrdude_bin)
     -p <programmer/part specs>  can be used multiple times, overrides default tests
+    -s                          skip EEPROM tests for bootloaders
     -? or -h                    show this help text
 Example:
     \$ $progname -d 0 -p "-c dryrun -p t13" -p "-c dryrun -p m4809"
 END
 }
 
-while getopts ":\?hc:d:e:p:" opt; do
+while getopts ":\?hc:d:e:p:s" opt; do
   case ${opt} in
     c) avrdude_conf="$OPTARG"
         ;;
@@ -31,6 +33,8 @@ while getopts ":\?hc:d:e:p:" opt; do
     e) avrdude_bin="$OPTARG"
         ;;
     p) pgm_and_target+=("$OPTARG")
+        ;;
+    s) skip_eeprom=1
         ;;
     --) shift;
         break
@@ -91,28 +95,44 @@ $avrdude_bin -v 2>&1 | grep Version | cut -f2- -d: | sed s/Version/version/
       # Memories that may or may not be present
       USERSIG_SIZE=$($avrdude_bin $avrdude_conf ${pgm_and_target[$p]} -cdryrun -qq -T 'part -m' 2>/dev/null | grep usersig | awk '{print $2}') # R/W
 
-      # Set, clear and read eesave fusebit
-      sleep $delay
-      if [ -n "$EE_SIZE" ]; then
-        command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -T 'config eesave=1; config eesave=0; config eesave'"
-        eesave=$(eval $command | awk '{print $4}')
-        if [[ $eesave == "0" ]]; then
-          echo ✅ eesave fuse bit set, cleared and verified
+      # Is the to be tested programmer for a bootloader?
+      is_bootloader=0
+      # Isolate programmer (assumes either -c prog or -cprog but not sth more tricky such as -qc prog)
+      programmer=$(echo ${pgm_and_target[$p]} | sed 's/  *\([^-]\)/\1/g' | tr \  \\n | grep ^-c)
+      if [ -n "$programmer" ]; then
+        ($avrdude_bin $avrdude_conf "$programmer"/At 2>/dev/null | grep -q prog_modes.PM_SPM) && is_bootloader=1
+      fi
+
+      # Should EEPROM test be carried out?
+      check_eeprom=1
+      [[ -z "$EE_SIZE" ]] && check_eeprom=0
+      [[ $is_bootloader -eq 1 && $skip_eeprom -eq 1 ]] && check_eeprom=0
+
+      # Bootloaders usually cannot set fuses
+      if [[ $is_bootloader -ne 1 ]]; then
+        # Set, clear and read eesave fusebit
+        sleep $delay
+        if [ -n "$EE_SIZE" ]; then
+          command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -T 'config eesave=1; config eesave=0; config eesave'"
+          eesave=$(eval $command | awk '{print $4}')
+          if [[ $eesave == "0" ]]; then
+            echo ✅ eesave fuse bit set, cleared and verified
+          else
+            echo ❌ eesave fuse bit not cleared
+            echo ➡️ command \"$command\" failed
+            FAIL=true
+          fi
+        # If the part doesn't have EEPROM, set, clear and read the wdton fusebit instead
         else
-          echo ❌ eesave fuse bit not cleared
-          echo ➡️ command \"$command\" failed
-          FAIL=true
-        fi
-      # If the part doesn't have EEPROM, set, clear and read the wdton fusebit instead
-      else
-        command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -T 'config wdton=1; config wdton=0; config wdton'"
-        wdton=$(eval $command | awk '{print $4}')
-        if [[ $wdton == "0" ]]; then
-          echo ✅ wdton fuse bit set, cleared and verified
-        else
-          echo ❌ wdton fuse bit not cleared
-          echo ➡️ command \"$command\" failed
-          FAIL=true
+          command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -T 'config wdton=1; config wdton=0; config wdton'"
+          wdton=$(eval $command | awk '{print $4}')
+          if [[ $wdton == "0" ]]; then
+            echo ✅ wdton fuse bit set, cleared and verified
+          else
+            echo ❌ wdton fuse bit not cleared
+            echo ➡️ command \"$command\" failed
+            FAIL=true
+          fi
         fi
       fi
 
@@ -131,7 +151,7 @@ $avrdude_bin -v 2>&1 | grep Version | cut -f2- -d: | sed s/Version/version/
       fi
 
       # The quick brown fox -U eeprom
-      if [ -n "$EE_SIZE" ]; then
+      if [ $check_eeprom -eq 1 ]; then
         sleep $delay
         command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
         -Ueeprom:w:test_files/the_quick_brown_fox_${EE_SIZE}B.hex \
@@ -161,7 +181,7 @@ $avrdude_bin -v 2>&1 | grep Version | cut -f2- -d: | sed s/Version/version/
       fi
 
       # Lorem ipsum -U eeprom
-      if [ -n "$EE_SIZE" ]; then
+      if [ $check_eeprom -eq 1 ]; then
         sleep $delay
         command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
         -Ueeprom:w:test_files/lorem_ipsum_${EE_SIZE}B.srec \
@@ -177,7 +197,7 @@ $avrdude_bin -v 2>&1 | grep Version | cut -f2- -d: | sed s/Version/version/
       fi
 
       # Chip erase and -U eeprom 0xff fill
-      if [ -n "$EE_SIZE" ]; then
+      if [ $check_eeprom -eq 1 ]; then
         sleep $delay
         command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -e \
         -Ueeprom:w:test_files/0xff_${EE_SIZE}B.hex \
@@ -206,7 +226,7 @@ $avrdude_bin -v 2>&1 | grep Version | cut -f2- -d: | sed s/Version/version/
       fi
 
       # The quick brown fox -T eeprom
-      if [ -n "$EE_SIZE" ]; then
+      if [ $check_eeprom -eq 1 ]; then
         sleep $delay
         command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
         -T \"write eeprom test_files/the_quick_brown_fox_${EE_SIZE}B.hex:a\""
@@ -235,7 +255,7 @@ $avrdude_bin -v 2>&1 | grep Version | cut -f2- -d: | sed s/Version/version/
       fi
 
       # Lorem ipsum -T eeprom
-      if [ -n "$EE_SIZE" ]; then
+      if [ $check_eeprom -eq 1 ]; then
         sleep $delay
         command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
         -T \"write eeprom test_files/lorem_ipsum_${EE_SIZE}B.srec\""
@@ -293,7 +313,7 @@ $avrdude_bin -v 2>&1 | grep Version | cut -f2- -d: | sed s/Version/version/
       fi
 
       # Pack my box -U eeprom (writes to part 2/8 and 7/8  of the memory)
-      if [ -n "$EE_SIZE" ]; then
+      if [ $check_eeprom -eq 1 ]; then
         sleep $delay
         command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
         -Ueeprom:w:test_files/holes_pack_my_box_${EE_SIZE}B.hex:a"
@@ -308,7 +328,7 @@ $avrdude_bin -v 2>&1 | grep Version | cut -f2- -d: | sed s/Version/version/
       fi
 
       # The five boxing wizards -T eeprom (writes to part 2/8 and 7/8  of the memory)
-      if [ -n "$EE_SIZE" ]; then
+      if [ $check_eeprom -eq 1 ]; then
         sleep $delay
         command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
         -T \"write eeprom test_files/holes_the_five_boxing_wizards_${EE_SIZE}B.hex\""
@@ -323,8 +343,8 @@ $avrdude_bin -v 2>&1 | grep Version | cut -f2- -d: | sed s/Version/version/
       fi
 
       # Write and verify random data to usersig if present
-      sleep $delay
-      if [ -n "$USERSIG_SIZE" ]; then
+      if [[ -n "$USERSIG_SIZE" && $is_bootloader -ne 1 ]]; then
+        sleep $delay
         command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
         -T \"erase usersig; write usersig test_files/random_data_${USERSIG_SIZE}B.bin\" \
         -Uusersig:r:test_files/usersig_dump_${USERSIG_SIZE}B.bin:r"
