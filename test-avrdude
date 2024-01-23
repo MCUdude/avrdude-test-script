@@ -99,7 +99,7 @@ result () {                     # Evaluate condition, print execution time and s
     return 0
   fi
   echo ❌ "$(printf '%7.3f s' $elapsed): $specify (failed command below)"
-  echo "\$ $command"
+  echo "\$ $command" | tr -s " "
   FAIL=true
   return 1
 }
@@ -151,8 +151,7 @@ for (( p=0; p<$arraylength; p++ )); do
     # The quick brown fox -U flash
     specify="the_quick_brown_fox_${FLASH_SIZE}B.hex flash -U write/verify"
     command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-    -Uflash:w:test_files/the_quick_brown_fox_${FLASH_SIZE}B.hex \
-    -Uflash:v:test_files/the_quick_brown_fox_${FLASH_SIZE}B.hex"
+    -Uflash:w:test_files/the_quick_brown_fox_${FLASH_SIZE}B.hex"
     execute "$command"
     result [ $? == 0 ]
 
@@ -160,8 +159,7 @@ for (( p=0; p<$arraylength; p++ )); do
     if [ $check_eeprom -eq 1 ]; then
       specify="the_quick_brown_fox_${EE_SIZE}B.hex eeprom -U write/verify"
       command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-      -Ueeprom:w:test_files/the_quick_brown_fox_${EE_SIZE}B.hex \
-      -Ueeprom:v:test_files/the_quick_brown_fox_${EE_SIZE}B.hex"
+      -Ueeprom:w:test_files/the_quick_brown_fox_${EE_SIZE}B.hex"
       execute "$command"
       result [ $? == 0 ]
     fi
@@ -169,8 +167,7 @@ for (( p=0; p<$arraylength; p++ )); do
     # Lorem ipsum -U flash
     specify="lorem_ipsum_${FLASH_SIZE}B.srec flash -U write/verify"
     command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-    -Uflash:w:test_files/lorem_ipsum_${FLASH_SIZE}B.srec \
-    -Uflash:v:test_files/lorem_ipsum_${FLASH_SIZE}B.srec"
+    -Uflash:w:test_files/lorem_ipsum_${FLASH_SIZE}B.srec"
     execute "$command"
     result [ $? == 0 ]
 
@@ -178,8 +175,7 @@ for (( p=0; p<$arraylength; p++ )); do
     if [ $check_eeprom -eq 1 ]; then
       specify="lorem_ipsum_${EE_SIZE}B.srec eeprom -U write/verify"
       command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-      -Ueeprom:w:test_files/lorem_ipsum_${EE_SIZE}B.srec \
-      -Ueeprom:v:test_files/lorem_ipsum_${EE_SIZE}B.srec"
+      -Ueeprom:w:test_files/lorem_ipsum_${EE_SIZE}B.srec"
       execute "$command"
       result [ $? == 0 ]
     fi
@@ -188,8 +184,7 @@ for (( p=0; p<$arraylength; p++ )); do
     if [ $check_eeprom -eq 1 ]; then
       specify="0xff_${EE_SIZE}B.hex eeprom -U write/verify"
       command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -e \
-      -Ueeprom:w:test_files/0xff_${EE_SIZE}B.hex \
-      -Ueeprom:v:test_files/0xff_${EE_SIZE}B.hex"
+      -Ueeprom:w:test_files/0xff_${EE_SIZE}B.hex"
       execute "$command"
       result [ $? == 0 ]
     fi
@@ -199,7 +194,7 @@ for (( p=0; p<$arraylength; p++ )); do
     command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
     -T \"write flash test_files/the_quick_brown_fox_${FLASH_SIZE}B.hex:a\""
     OUTPUT=$(execute "$command" 2>&1)
-    result [[ $OUTPUT == '' ]]
+    result [[ "$OUTPUT" == '' ]]
 
     # The quick brown fox -T eeprom
     if [ $check_eeprom -eq 1 ]; then
@@ -207,7 +202,7 @@ for (( p=0; p<$arraylength; p++ )); do
       command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
       -T \"write eeprom test_files/the_quick_brown_fox_${EE_SIZE}B.hex:a\""
       OUTPUT=$(execute "$command" 2>&1)
-      result [[ $OUTPUT == '' ]]
+      result [[ "$OUTPUT" == '' ]]
     fi
 
     # Lorem ipsum -T flash
@@ -215,7 +210,7 @@ for (( p=0; p<$arraylength; p++ )); do
     command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
     -T \"write flash test_files/lorem_ipsum_${FLASH_SIZE}B.srec\""
     OUTPUT=$(execute "$command" 2>&1)
-    result [[ $OUTPUT == '' ]]
+    result [[ "$OUTPUT" == '' ]]
 
     # Lorem ipsum -T eeprom
     if [ $check_eeprom -eq 1 ]; then
@@ -223,7 +218,7 @@ for (( p=0; p<$arraylength; p++ )); do
       command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
       -T \"write eeprom test_files/lorem_ipsum_${EE_SIZE}B.srec\""
       OUTPUT=$(execute "$command" 2>&1)
-      result [[ $OUTPUT == '' ]]
+      result [[ "$OUTPUT" == '' ]]
     fi
 
     if [[ $FLASH_SIZE -ge 2048 ]]; then
@@ -234,7 +229,7 @@ for (( p=0; p<$arraylength; p++ )); do
       -U flash:w:test_files/cola-vending-machine.raw \
       -T 'write flash -1024 \"Hello World\"'"
       OUTPUT=$(execute "$command" 2>&1)
-      result [[ $OUTPUT == '' ]]
+      result [[ "$OUTPUT" == '' ]]
     fi
 
     # Pack my box -U flash (writes to part 2/8 and 7/8  of the memory)
@@ -249,7 +244,7 @@ for (( p=0; p<$arraylength; p++ )); do
     command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
     -T \"write flash test_files/holes_the_five_boxing_wizards_${FLASH_SIZE}B.hex\""
     OUTPUT=$(execute "$command" 2>&1)
-    result [[ $OUTPUT == '' ]]
+    result [[ "$OUTPUT" == '' ]]
 
     # Pack my box -U eeprom (writes to part 2/8 and 7/8  of the memory)
     if [ $check_eeprom -eq 1 ]; then
@@ -266,7 +261,7 @@ for (( p=0; p<$arraylength; p++ )); do
       command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
       -T \"write eeprom test_files/holes_the_five_boxing_wizards_${EE_SIZE}B.hex\""
       OUTPUT=$(execute "$command" 2>&1)
-      result [[ $OUTPUT == '' ]]
+      result [[ "$OUTPUT" == '' ]]
     fi
 
     # Write and verify random data to usersig if present
