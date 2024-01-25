@@ -179,14 +179,16 @@ for (( p=0; p<$arraylength; p++ )); do
     # Dryrun tests @@@ Todo: add more tests...
     #
     if [[ "$programmer" == -cdryrun ]]; then
-      # Raw test
-      specify="cola-vending-machine.raw flash -T/-U write/verify"
-      command=(${avrdude[@]}
-        -T '"erase flash; write flash -512 0xc0cac01a 0xcafe \"secret Coca .bin recipe\""'
-        -U flash:w:test_files/cola-vending-machine.raw
-        -T '"write flash -1024 \"Hello World\""')
-      execute "${command[@]}" > $outfile
-      result [[ ! -s $outfile '&&' ! -s $logfile ]]
+      if [[ $FLASH_SIZE -ge 2048 ]]; then
+        # Raw test
+        specify="cola-vending-machine.raw flash -T/-U write/verify"
+        command=(${avrdude[@]}
+          -T '"erase flash; write flash -512 0xc0cac01a 0xcafe \"secret Coca .bin recipe\""'
+          -U flash:w:test_files/cola-vending-machine.raw
+          -T '"write flash -1024 \"Hello World\""')
+        execute "${command[@]}" > $outfile
+        result [[ ! -s $outfile '&&' ! -s $logfile ]]
+      fi
     fi
 
     #####
