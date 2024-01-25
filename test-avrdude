@@ -208,7 +208,7 @@ for (( p=0; p<$arraylength; p++ )); do
       result [[ '"$fusebit"' == 1 '&&' ! -s $logfile ]]
 
       if [ -n "$EE_SIZE" ]; then
-        specify="set eesave fusebit to factory default: delete EEPROM on chip erase"
+        specify="set eesave fusebit to delete EEPROM on chip erase"
         command=($avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -cdryrun -qq -T '"config eesave"' '|'
           ${avrdude[@]} -t)
         execute "${command[@]}" > $outfile
@@ -216,6 +216,14 @@ for (( p=0; p<$arraylength; p++ )); do
         result [[ ! -s $logfile ]]
       fi
     fi
+
+    ######
+    # Chip erase for defined initial state
+    #
+    specify="chip erase"
+    command=(${avrdude[@]} -e)
+    execute "${command[@]}"
+    result [ $? == 0 ]
 
     #####
     # Flash test: a relatively difficult file with two code blocks and one data block with holes
@@ -243,18 +251,28 @@ for (( p=0; p<$arraylength; p++ )); do
     fi
 
     ######
-    # EEPROM test with a file containing holes
+    # EEPROM tests
     #
     if [ $check_eeprom -eq 1 ]; then
-      specify="holes_pack_my_box_${EE_SIZE}B.hex eeprom -U write/verify"
-      command=(${avrdude[@]} -Ueeprom:w:test_files/holes_pack_my_box_${EE_SIZE}B.hex)
+      # -U cannot cope with EEPROMs that are unable to set cleared bits but
+      # the terminal can if the eesave fuse makes chip erase erase EEPROM
+      specify="check whether programmer can flip EEPROM 0s to 1s"
+      command=(${avrdude[@]}  -Ueeprom:w:0x55:m -Ueeprom:w:0xaa:m)
       execute "${command[@]}"
       result [ $? == 0 ]
-      if [ $? != 0 ]; then        # Not working? try a file without holes
-        specify="the_quick_brown_fox_${EE_SIZE}B.hex eeprom -U write/verify"
-        command=(${avrdude[@]} -Ueeprom:w:test_files/the_quick_brown_fox_${EE_SIZE}B.hex)
+      if [ $? == 0 ]; then      # OK, try a file with holes
+        specify="holes_pack_my_box_${EE_SIZE}B.hex eeprom -U write/verify"
+        command=(${avrdude[@]} -Ueeprom:w:test_files/holes_pack_my_box_${EE_SIZE}B.hex)
         execute "${command[@]}"
         result [ $? == 0 ]
+        if [ $? != 0 ]; then        # Not working? try a file without holes
+          specify="the_quick_brown_fox_${EE_SIZE}B.hex eeprom -U write/verify"
+          command=(${avrdude[@]} -Ueeprom:w:test_files/the_quick_brown_fox_${EE_SIZE}B.hex)
+          execute "${command[@]}"
+          result [ $? == 0 ]
+        fi
+      else
+        echo "# ... the next test may therefore take longer"
       fi
 
       specify="holes_the_five_boxing_wizards_${EE_SIZE}B.hex eeprom -T write/verify"
@@ -272,12 +290,12 @@ for (( p=0; p<$arraylength; p++ )); do
     ######
     # Chip erase and verify
     #
-    specify="chip erase and spot check flash is erased"
+    specify="chip erase and spot check flash is actually erased"
     command=(${avrdude[@]} -e -Uflash:v:test_files/holes_0xff_${FLASH_SIZE}B.hex)
     execute "${command[@]}"
     result [ $? == 0 ]
     if [[ $? == 0 && $check_eeprom -eq 1 ]]; then
-      specify="... and spot check eeprom is erased"
+      specify="spot check eeprom is erased, too"
       command=(${avrdude[@]} -Ueeprom:v:test_files/holes_0xff_${EE_SIZE}B.hex)
       execute "${command[@]}"
       result [ $? == 0 ]
