@@ -1,5 +1,5 @@
 #!/bin/bash
-for i in 64 128 256 512 768 1024 2048 4096 8192 10240 16384 20480 32768 36864 40960 49152 65536 69632 131072 139264 204800 262144 270336 401408 524288
+for i in 32 64 128 256 512 768 1024 2048 4096 8192 10240 16384 20480 32768 36864 40960 49152 65536 69632 131072 139264 204800 262144 270336 401408 524288
 do
   ###
   # Files for EEPROM testing
@@ -16,16 +16,18 @@ do
   # Almost full flash leaving space for bootloaders either end
   srec_cat -generate $((i/8)) $((i-i/8)) -repeat-data $(for i in {255..0}; do printf "0x%02x 0xcf " $i; done) \
            -o flash_for_bootloaders_rjmp_loops_${i}B.hex -Intel
-  # A "difficult" sketch file with two code blocks and a data block of one byte with holes in between
-  srec_cat -generate $((i/8+2)) $((i/4)) -repeat-data $(for i in {255..0}; do printf "0x%02x 0xcf " $i; done) \
-           -generate $((i-i/4)) $((i-i/8-4)) -repeat-data $(for i in {255..0}; do printf "0x%02x 0xcf " $i; done) \
-           -generate $((i-i/8-3)) $((i-i/8-2)) -repeat-data 0xcf \
-           -o holes_rjmp_loops_${i}B.hex -Intel
-  # A partial file to spot check a chip erase
-  srec_cat -generate $((i/8+2)) $((i/4)) -repeat-data 0xff \
-           -generate $((i-i/4)) $((i-i/8-4)) -repeat-data 0xff \
-           -generate $((i-i/8-3)) $((i-i/8-2)) -repeat-data 0xff \
-           -o holes_0xff_${i}B.hex -Intel
+  if [[ $i -gt 32 ]]; then
+    # A "difficult" sketch file with two code blocks and a data block of one byte with holes in between
+    srec_cat -generate $((i/8+2)) $((i/4)) -repeat-data $(for i in {255..0}; do printf "0x%02x 0xcf " $i; done) \
+      -generate $((i-i/4)) $((i-i/8-4)) -repeat-data $(for i in {255..0}; do printf "0x%02x 0xcf " $i; done) \
+      -generate $((i-i/8-3)) $((i-i/8-2)) -repeat-data 0xcf \
+      -o holes_rjmp_loops_${i}B.hex -Intel
+    # A partial file to spot check a chip erase
+    srec_cat -generate $((i/8+2)) $((i/4)) -repeat-data 0xff \
+      -generate $((i-i/4)) $((i-i/8-4)) -repeat-data 0xff \
+      -generate $((i-i/8-3)) $((i-i/8-2)) -repeat-data 0xff \
+      -o holes_0xff_${i}B.hex -Intel
+  fi
   # Full flash for parts without bootloaders
   srec_cat -generate 0 $i -repeat-data $(for i in {255..0}; do printf "0x%02x 0xcf " $i; done) \
            -o rjmp_loops_${i}B.hex -Intel
