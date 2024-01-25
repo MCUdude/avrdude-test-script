@@ -265,7 +265,9 @@ for (( p=0; p<$arraylength; p++ )); do
       result [[ ! -s $outfile '&&' ! -s $logfile ]]
     fi
 
+    ######
     # Chip erase and verify
+    #
     if [ $check_eeprom -eq 1 ]; then
       specify="chip erase and spot check flash is erased"
       command=(${avrdude[@]} -e -Uflash:v:test_files/holes_0xff_${FLASH_SIZE}B.hex)
@@ -279,18 +281,23 @@ for (( p=0; p<$arraylength; p++ )); do
       fi
     fi
 
+    ######
     # Write and verify random data to usersig if present
+    #
     if [[ -n "$USERSIG_SIZE" && $is_bootloader -ne 1 ]]; then
       tmpfile="$tmp/usersig_dump$$_${USERSIG_SIZE}B.bin"
       specify="random_data_${USERSIG_SIZE}B.bin usersig -T/-U write/read"
       command=(${avrdude[@]}
-        -T '"erase usersig; write usersig test_'files/random_data_${USERSIG_SIZE}B.bin'"'
+        -T '"erase usersig; write usersig 'test_files/random_data_${USERSIG_SIZE}B.bin'"'
         -T flush
-        -Uusersig:r:$tmpfile:r
-        -T '"erase usersig"')
-      execute "${command[@]}"
+        -U usersig:r:$tmpfile:r
+        -U usersig:v:$tmpfile:r
+        -T '"erase usersig"'
+        -T flush
+        -U usersig:v:test_files/0xff_${USERSIG_SIZE}B.hex:i)
+      execute "${command[@]}" >$outfile
       touch "$tmpfile"
-      result cmp -s "test_files/random_data_${USERSIG_SIZE}B.bin" "$tmpfile"
+      result [[ ! -s $outfile '&&' ! -s $logfile ]] '&&' cmp -s "test_files/random_data_${USERSIG_SIZE}B.bin" "$tmpfile"
       rm -f "$tmpfile"
     fi
 
