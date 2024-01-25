@@ -67,6 +67,7 @@ if [[ ${#pgm_and_target[@]} -eq 0 ]]; then
   # Default tests in absence of -p
   pgm_and_target+=(
     "-cdryrun -pm328p"
+    "-cdryrun -pm2560"
     "-cdryrun -px64a1"
     "-cpkobn_updi -B1 -patmega3208"
     "-cpkobn_updi -B1 -patmega3209"
@@ -188,6 +189,12 @@ for (( p=0; p<$arraylength; p++ )); do
           -T '"write flash -1024 \"Hello World\""')
         execute "${command[@]}" > $outfile
         result [[ ! -s $outfile '&&' ! -s $logfile ]]
+      fi
+      if [[ $FLASH_SIZE -ge 131072 ]]; then
+        specify="extended address and hole test"
+        command=(${avrdude[@]} -U flash:w:test_files/blink-mega2560+lext-test.hex)
+        execute "${command[@]}"
+        result [ $? == 0 ]
       fi
     fi
 
