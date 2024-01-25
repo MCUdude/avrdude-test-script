@@ -1,30 +1,37 @@
 #!/usr/bin/env bash
 
+# published under GNU General Public License, version 3 (GPL-3.0)
+# authors Hans Eirik Bull and Stefan Rueger, 2024
+
 progname=$(basename "$0")
 
 avrdude_conf=''                 # Configuration for every run, eg, '-C path_to_avrdude_conf'
-delay=4                         # Some programmers need a delay between Avrdude calls
+delay=4                         # Some programmers need a delay between AVRDUDE calls
 avrdude_bin=avrdude             # Executable
+list_only=0                     # Normal run
 declare -a pgm_and_target=()    # Array with test option strings, eg, "-c dryrun -p m328p"
 skip_eeprom=0                   # Do not skip EEPROM tests for bootloaders by default
+verbose=0                       # Do not show AVRDUDE errors and warnings by default
 
 Usage() {
 cat <<END
 Syntax: $progname {<opts>}
-Function: test avrdude for certain programmer and part combinations
+Function: test AVRDUDE for certain programmer and part combinations
 Options:
     -c <configuration spec>     additional configuration options used for all runs
     -d <sec>                    delay between test commands (default $delay seconds)
-    -e <avrdude path>           set path of avrdude executable (default $avrdude_bin)
+    -e <avrdude path>           set path of AVRDUDE executable (default $avrdude_bin)
+    -l                          list test commands but do not execute them
     -p <programmer/part specs>  can be used multiple times, overrides default tests
     -s                          skip EEPROM tests for bootloaders
+    -v                          verbose: show AVRDUDE error and warning messages
     -? or -h                    show this help text
 Example:
     \$ $progname -d 0 -p "-c dryrun -p t13" -p "-c dryrun -p m4809"
 END
 }
 
-while getopts ":\?hc:d:e:p:s" opt; do
+while getopts ":\?hc:d:e:lp:sv" opt; do
   case ${opt} in
     c) avrdude_conf="$OPTARG"
         ;;
@@ -32,9 +39,13 @@ while getopts ":\?hc:d:e:p:s" opt; do
         ;;
     e) avrdude_bin="$OPTARG"
         ;;
+    l) list_only=1
+        ;;
     p) pgm_and_target+=("$OPTARG")
         ;;
     s) skip_eeprom=1
+        ;;
+    v) verbose=1
         ;;
     --) shift;
         break
@@ -80,45 +91,74 @@ $avrdude_bin -v 2>&1 | grep Version | cut -f2- -d: | sed s/Version/version/
 
 tmp=/dev/shm                    # Temporary RAM directory
 [ ! -d $tmp ] && tmp=/tmp       # Fall back to /tmp if it does not exist
-status=$(mktemp "$tmp/$progname.XXXXXX")
-trap "rm -f $status" EXIT
+status=$(mktemp "$tmp/$progname.status.XXXXXX")
+logfile=$(mktemp "$tmp/$progname.log.XXXXXX")
+outfile=$(mktemp "$tmp/$progname.out.XXXXXX")
+trap "rm -f $status $logfile $outfile" EXIT
 
 TIMEFORMAT=%R                   # time built-in only returns elapsed wall-clock time
 elapsed=0                       # Global variable holding time of last execute command in seconds
+command=(sleep 0.1)             # Array with AVRDUDE command
 
-execute () {                    # Execute $command, set $elapsed and return exit value of command
+# Execute args as command, set $elapsed and return exit value of command; don't call in a subshell
+execute () {
+  if [[ $list_only -eq 1 ]]; then
+    echo "\$ ${command[@]}" | tr -s " "
+    return 0;
+  fi
   sleep "$delay"
-  # These shenanigans keep the output
+  # These shenanigans keep stdout, stderr and the exit code of the command
   { read elapsed < <({ time { eval "$@"; echo $? >"$status"; } 2>&4 4>&-; } 4>&2 2>&1 >&3 3>&-); } 3>&1
   return $(cat "$status")
 }
 
-result () {                     # Evaluate condition, print execution time and success or failure
-  if eval "$@"; then
-    echo ✅ "$(printf '%7.3f s' $elapsed): $specify"
-    return 0
+# Evaluate condition, print execution time and success or failure
+result () {
+  local ret=0;
+
+  eval "$@" && ret=0 || ret=1
+  if [[ $list_only -eq 0 ]]; then
+    if [[ $ret -eq 0 ]]; then
+      echo ✅ "$(printf '%7.3f s' $elapsed): $specify"
+    else
+      echo ❌ "$(printf '%7.3f s' $elapsed): $specify (failed command below)"
+      echo "\$ ${command[@]}" | tr -s " "
+      FAIL=true
+    fi
+    [[ $verbose -eq 1 ]] && { touch $logfile $outfile; cat $logfile $outfile; }
+  else
+    touch $outfile; cat $outfile
   fi
-  echo ❌ "$(printf '%7.3f s' $elapsed): $specify (failed command below)"
-  echo "\$ $command" | tr -s " "
-  FAIL=true
-  return 1
+  rm -f $logfile $outfile; elapsed=-999; specify="unknown"; command=(sleep 0.1)
+  return $ret
 }
 
 for (( p=0; p<$arraylength; p++ )); do
-  # read -p "Prepare \"$p\" and press enter to continue"
-  echo "Prepare \"${pgm_and_target[$p]}\" and press 'enter' or 'space' to continue. Press any other key to skip"
-  read -n1 -s -r -p $'' key
-  sleep 0.25
+  if [[ $list_only -eq 1 ]]; then
+    [[ p -ne 0 ]] && echo
+    echo "# ${pgm_and_target[$p]}"
+    key=''
+  else
+    echo "Prepare \"${pgm_and_target[$p]}\" and press 'enter' or 'space' to continue. Press any other key to skip"
+    read -n1 -s -r -p $'' key
+    sleep 0.25
+  fi
 
   if [ "$key" == '' ]; then
     FAIL=false
+    avrdude=($avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -l $logfile)
 
     # Get flash and EEPROM size in bytes and make sure the numbers are in dec form
-    FLASH_SIZE=$($avrdude_bin $avrdude_conf ${pgm_and_target[$p]} -cdryrun -qq -T 'part -m' 2>/dev/null | grep flash | awk '{print $2}')
-    EE_SIZE=$($avrdude_bin $avrdude_conf ${pgm_and_target[$p]} -cdryrun -qq -T 'part -m' 2>/dev/null | grep eeprom | awk '{print $2}')
+    FLASH_SIZE=$(${avrdude[@]} -cdryrun -T 'part -m' 2>/dev/null | grep flash | awk '{print $2}')
+    EE_SIZE=$(${avrdude[@]} -cdryrun -T 'part -m' 2>/dev/null | grep eeprom | awk '{print $2}')
   
+    if [[ -z "$FLASH_SIZE" ]]; then
+      echo "No flash? Skipping ${pgm_and_target[$p]} test"
+      continue
+    fi
+
     # Memories that may or may not be present
-    USERSIG_SIZE=$($avrdude_bin $avrdude_conf ${pgm_and_target[$p]} -cdryrun -qq -T 'part -m' 2>/dev/null | grep usersig | awk '{print $2}') # R/W
+    USERSIG_SIZE=$(${avrdude[@]} -cdryrun -T 'part -m' 2>/dev/null | grep usersig | awk '{print $2}') # R/W
 
     # Is the to be tested programmer for a bootloader?
     is_bootloader=0
@@ -136,142 +176,129 @@ for (( p=0; p<$arraylength; p++ )); do
     # Bootloaders usually cannot set fuses
     if [[ $is_bootloader -ne 1 ]]; then
       if [ -n "$EE_SIZE" ]; then
-        specify="set, clear and read eesave fuse bit"
-        command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -T 'config eesave=1; config eesave=0; config eesave'"
-        eesave=$(execute "$command" | awk '{print $4}')
-        result [[ $eesave == "0" ]]
-      else                      # No EEPROM? Set, clear and read the wdton fusebit instead
-        specify="set, clear and read wdton fuse bit"
-        command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -T 'config wdton=1; config wdton=0; config wdton'"
-        wdton=$(execute "$command" | awk '{print $4}')
-        result [[ $wdton == "0" ]]
+        specify="clear, set and read eesave fuse bit"
+        command=(${avrdude[@]} -T '"config eesave=0; config eesave=1; config eesave"')
+      else
+        specify="clear, set and read wdton fuse bit"
+        command=(${avrdude[@]} -T '"config wdton=0; config wdton=1; config wdton"')
       fi
+      execute "${command[@]}" > $outfile
+      fusebit=$(awk '{print $4}' < $outfile)
+      rm $outfile
+      result [[ '"$fusebit"' == 1 '&&' ! -s $logfile ]]
     fi
 
     # The quick brown fox -U flash
     specify="the_quick_brown_fox_${FLASH_SIZE}B.hex flash -U write/verify"
-    command="$avrdude_bin $avrdude_conf -qqqqq ${pgm_and_target[$p]} \
-    -Uflash:w:test_files/the_quick_brown_fox_${FLASH_SIZE}B.hex"
-    execute "$command"
+    command=(${avrdude[@]} -Uflash:w:test_files/the_quick_brown_fox_${FLASH_SIZE}B.hex)
+    execute "${command[@]}"
     result [ $? == 0 ]
 
     # The quick brown fox -U eeprom
     if [ $check_eeprom -eq 1 ]; then
       specify="the_quick_brown_fox_${EE_SIZE}B.hex eeprom -U write/verify"
-      command="$avrdude_bin $avrdude_conf -qqqqq ${pgm_and_target[$p]} \
-      -Ueeprom:w:test_files/the_quick_brown_fox_${EE_SIZE}B.hex"
-      execute "$command"
+      command=(${avrdude[@]} -Ueeprom:w:test_files/the_quick_brown_fox_${EE_SIZE}B.hex)
+      execute "${command[@]}"
       result [ $? == 0 ]
     fi
 
     # Lorem ipsum -U flash
     specify="lorem_ipsum_${FLASH_SIZE}B.srec flash -U write/verify"
-    command="$avrdude_bin $avrdude_conf -qqqqq ${pgm_and_target[$p]} \
-    -Uflash:w:test_files/lorem_ipsum_${FLASH_SIZE}B.srec"
-    execute "$command"
+    command=(${avrdude[@]} -Uflash:w:test_files/lorem_ipsum_${FLASH_SIZE}B.srec)
+    execute "${command[@]}"
     result [ $? == 0 ]
 
     # Lorem ipsum -U eeprom
     if [ $check_eeprom -eq 1 ]; then
       specify="lorem_ipsum_${EE_SIZE}B.srec eeprom -U write/verify"
-      command="$avrdude_bin $avrdude_conf -qqqqq ${pgm_and_target[$p]} \
-      -Ueeprom:w:test_files/lorem_ipsum_${EE_SIZE}B.srec"
-      execute "$command"
+      command=(${avrdude[@]} -Ueeprom:w:test_files/lorem_ipsum_${EE_SIZE}B.srec)
+      execute "${command[@]}"
       result [ $? == 0 ]
     fi
 
     # Chip erase and -U eeprom 0xff fill
     if [ $check_eeprom -eq 1 ]; then
       specify="0xff_${EE_SIZE}B.hex eeprom -U write/verify"
-      command="$avrdude_bin $avrdude_conf -qqqqq ${pgm_and_target[$p]} -e \
-      -Ueeprom:w:test_files/0xff_${EE_SIZE}B.hex"
-      execute "$command"
+      command=(${avrdude[@]} -e -Ueeprom:w:test_files/0xff_${EE_SIZE}B.hex)
+      execute "${command[@]}"
       result [ $? == 0 ]
     fi
 
     # The quick brown fox -T flash
     specify="the_quick_brown_fox_${FLASH_SIZE}B.hex:a flash -T write/verify"
-    command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-    -T \"write flash test_files/the_quick_brown_fox_${FLASH_SIZE}B.hex:a\""
-    OUTPUT=$(execute "$command" 2>&1)
-    result [[ -z '$OUTPUT' ]]
+    command=(${avrdude[@]} -T '"write flash 'test_files/the_quick_brown_fox_${FLASH_SIZE}B.hex:a'"')
+    execute "${command[@]}" > $outfile
+    result [[ ! -s $outfile '&&' ! -s $logfile ]]
 
     # The quick brown fox -T eeprom
     if [ $check_eeprom -eq 1 ]; then
       specify="the_quick_brown_fox_${EE_SIZE}B.hex:a eeprom -T write/verify"
-      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-      -T \"write eeprom test_files/the_quick_brown_fox_${EE_SIZE}B.hex:a\""
-      OUTPUT=$(execute "$command" 2>&1)
-      result [[ -z '$OUTPUT' ]]
+      command=(${avrdude[@]} -T '"write eeprom 'test_files/the_quick_brown_fox_${EE_SIZE}B.hex:a'"')
+      execute "${command[@]}" > $outfile
+      result [[ ! -s $outfile '&&' ! -s $logfile ]]
     fi
 
     # Lorem ipsum -T flash
     specify="lorem_ipsum_${FLASH_SIZE}B.srec flash -T write/verify"
-    command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-    -T \"write flash test_files/lorem_ipsum_${FLASH_SIZE}B.srec\""
-    OUTPUT=$(execute "$command" 2>&1)
-    result [[ -z '$OUTPUT' ]]
+    command=(${avrdude[@]} -T '"write flash 'test_files/lorem_ipsum_${FLASH_SIZE}B.srec'"')
+    execute "${command[@]}" > $outfile
+    result [[ ! -s $outfile '&&' ! -s $logfile ]]
 
     # Lorem ipsum -T eeprom
     if [ $check_eeprom -eq 1 ]; then
       specify="lorem_ipsum_${EE_SIZE}B.srec eeprom -T write/verify"
-      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-      -T \"write eeprom test_files/lorem_ipsum_${EE_SIZE}B.srec\""
-      OUTPUT=$(execute "$command" 2>&1)
-      result [[ -z '$OUTPUT' ]]
+      command=(${avrdude[@]} -T '"write eeprom 'test_files/lorem_ipsum_${EE_SIZE}B.srec'"')
+      execute "${command[@]}" > $outfile
+      result [[ ! -s $outfile '&&' ! -s $logfile ]]
     fi
 
     if [[ $FLASH_SIZE -ge 2048 ]]; then
       # Raw test
       specify="cola-vending-machine.raw flash -T/-U write/verify"
-      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-      -T 'erase flash; write flash -512 0xc0cac01a 0xcafe \"secret Coca .bin recipe\"' \
-      -U flash:w:test_files/cola-vending-machine.raw \
-      -T 'write flash -1024 \"Hello World\"'"
-      OUTPUT=$(execute "$command" 2>&1)
-      result [[ -z '$OUTPUT' ]]
+      command=(${avrdude[@]}
+        -T '"erase flash; write flash -512 0xc0cac01a 0xcafe \"secret Coca .bin recipe\""'
+        -U flash:w:test_files/cola-vending-machine.raw
+        -T '"write flash -1024 \"Hello World\""')
+      execute "${command[@]}" > $outfile
+      result [[ ! -s $outfile '&&' ! -s $logfile ]]
     fi
 
     # Pack my box -U flash (writes to part 2/8 and 7/8  of the memory)
     specify="holes_pack_my_box_${FLASH_SIZE}B.hex:a flash -U write"
-    command="$avrdude_bin $avrdude_conf -qqqqq ${pgm_and_target[$p]} \
-    -Uflash:w:test_files/holes_pack_my_box_${FLASH_SIZE}B.hex:a"
-    execute "$command"
+    command=(${avrdude[@]} -Uflash:w:test_files/holes_pack_my_box_${FLASH_SIZE}B.hex:a)
+    execute "${command[@]}"
     result [ $? == 0 ]
 
     # The five boxing wizards -T flash (writes to part 2/8 and 7/8  of the memory)
     specify="holes_the_five_boxing_wizards_${FLASH_SIZE}B.hex flash -T write"
-    command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-    -T \"write flash test_files/holes_the_five_boxing_wizards_${FLASH_SIZE}B.hex\""
-    OUTPUT=$(execute "$command" 2>&1)
-    result [[ -z '$OUTPUT' ]]
+    command=(${avrdude[@]} -T '"write flash 'test_files/holes_the_five_boxing_wizards_${FLASH_SIZE}B.hex'"')
+    execute "${command[@]}" > $outfile
+    result [[ ! -s $outfile '&&' ! -s $logfile ]]
 
     # Pack my box -U eeprom (writes to part 2/8 and 7/8  of the memory)
     if [ $check_eeprom -eq 1 ]; then
       specify="holes_pack_my_box_${EE_SIZE}B.hex:a eeprom -U write"
-      command="$avrdude_bin $avrdude_conf -qqqqq ${pgm_and_target[$p]} \
-      -Ueeprom:w:test_files/holes_pack_my_box_${EE_SIZE}B.hex:a"
-      execute "$command"
+      command=(${avrdude[@]} -Ueeprom:w:test_files/holes_pack_my_box_${EE_SIZE}B.hex:a)
+      execute "${command[@]}"
       result [ $? == 0 ]
     fi
 
     # The five boxing wizards -T eeprom (writes to part 2/8 and 7/8  of the memory)
     if [ $check_eeprom -eq 1 ]; then
       specify="holes_the_five_boxing_wizards_${EE_SIZE}B.hex eeprom -T write"
-      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-      -T \"write eeprom test_files/holes_the_five_boxing_wizards_${EE_SIZE}B.hex\""
-      OUTPUT=$(execute "$command" 2>&1)
-      result [[ -z '$OUTPUT' ]]
+      command=(${avrdude[@]} -T '"write eeprom 'test_files/holes_the_five_boxing_wizards_${EE_SIZE}B.hex'"')
+      execute "${command[@]}" > $outfile
+      result [[ ! -s $outfile '&&' ! -s $logfile ]]
     fi
 
     # Write and verify random data to usersig if present
     if [[ -n "$USERSIG_SIZE" && $is_bootloader -ne 1 ]]; then
       tmpfile="$tmp/usersig_dump$$_${USERSIG_SIZE}B.bin"
       specify="random_data_${USERSIG_SIZE}B.bin usersig -T/-U write/read"
-      command="$avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} \
-      -T \"erase usersig; write usersig test_files/random_data_${USERSIG_SIZE}B.bin\" \
-      -Uusersig:r:$tmpfile:r"
-      execute "$command"
+      command=(${avrdude[@]}
+        -T '"erase usersig; write usersig test_'files/random_data_${USERSIG_SIZE}B.bin'"'
+        -Uusersig:r:$tmpfile:r)
+      execute "${command[@]}"
       touch "$tmpfile"
       result cmp -s "test_files/random_data_${USERSIG_SIZE}B.bin" "$tmpfile"
       rm -f "$tmpfile"
@@ -279,7 +306,7 @@ for (( p=0; p<$arraylength; p++ )); do
 
     if [ $FAIL == true ]; then
       echo ''
-      read -rep "One or more avrdude \"${pgm_and_target[$p]}\" tests failed. Do you want to retry this particular test? (y/n): " choice
+      read -rep "One or more AVRDUDE \"${pgm_and_target[$p]}\" tests failed. Do you want to retry this particular test? (y/n): " choice
       case "$choice" in
         [yY])
           p=$p-1; # Re-run the same for-loop iterator
