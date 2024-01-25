@@ -66,6 +66,8 @@ shift $((OPTIND -1))
 if [[ ${#pgm_and_target[@]} -eq 0 ]]; then
   # Default tests in absence of -p
   pgm_and_target+=(
+    "-cdryrun -pm328p"
+    "-cdryrun -px64a1"
     "-cpkobn_updi -B1 -patmega3208"
     "-cpkobn_updi -B1 -patmega3209"
     "-cpkobn_updi -B1 -patmega4808"
