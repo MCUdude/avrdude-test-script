@@ -21,6 +21,11 @@ do
            -generate $((i-i/4)) $((i-i/8-4)) -repeat-data $(for i in {255..0}; do printf "0x%02x 0xcf " $i; done) \
            -generate $((i-i/8-3)) $((i-i/8-2)) -repeat-data 0xcf \
            -o holes_rjmp_loops_${i}B.hex -Intel
+  # A partial file to spot check a chip erase
+  srec_cat -generate $((i/8+2)) $((i/4)) -repeat-data 0xff \
+           -generate $((i-i/4)) $((i-i/8-4)) -repeat-data 0xff \
+           -generate $((i-i/8-3)) $((i-i/8-2)) -repeat-data 0xff \
+           -o holes_0xff_${i}B.hex -Intel
   # Full flash for parts without bootloaders
   srec_cat -generate 0 $i -repeat-data $(for i in {255..0}; do printf "0x%02x 0xcf " $i; done) \
            -o rjmp_loops_${i}B.hex -Intel
