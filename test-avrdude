@@ -116,7 +116,7 @@ execute () {
 
 # Evaluate condition, print execution time and success or failure
 result () {
-  local ret=0;
+  local ret;
 
   eval "$@" && ret=0 || ret=1
   if [[ $list_only -eq 0 ]]; then
@@ -126,6 +126,7 @@ result () {
       echo ❌ "$(printf '%7.3f s' $elapsed): $specify (failed command below)"
       echo "\$ ${command[@]}" | tr -s " "
       FAIL=true
+      sleep 4                   # Let the hw settle down before the next test
     fi
     [[ $verbose -eq 1 ]] && { touch $logfile $outfile; cat $logfile $outfile; }
   else
