@@ -66,7 +66,6 @@ shift $((OPTIND -1))
 if [[ ${#pgm_and_target[@]} -eq 0 ]]; then
   # Default tests in absence of -p
   pgm_and_target+=(
-    "-cdryrun -pm328p"
     "-cdryrun -pm2560"
     "-cdryrun -px64a1"
     "-cpkobn_updi -B1 -patmega3208"
@@ -177,25 +176,65 @@ for (( p=0; p<$arraylength; p++ )); do
     [[ $is_bootloader -eq 1 && $skip_eeprom -eq 1 ]] && check_eeprom=0
 
     #####
-    # Dryrun tests @@@ Todo: add more tests...
+    # Dryrun tests for high-level progrmmer-independent tests (only for -m2560 or similar)
     #
-    if [[ "$programmer" == -cdryrun ]]; then
-      if [[ $FLASH_SIZE -ge 2048 ]]; then
-        # Raw test
-        specify="cola-vending-machine.raw flash -T/-U write/verify"
+    if [[ "$programmer" == -cdryrun && $FLASH_SIZE -eq 262144 ]]; then
+      # Raw test
+      specify="cola-vending-machine.raw flash -T/-U write/verify"
+      command=(${avrdude[@]}
+        -T '"erase flash; write flash -512 0xc0cac01a 0xcafe \"secret Coca .bin recipe\""'
+        -U flash:w:test_files/cola-vending-machine.raw
+        -T '"write flash -1024 \"Hello World\""')
+      execute "${command[@]}" > $outfile
+      result [[ ! -s $outfile '&&' ! -s $logfile ]]
+
+      specify="extended address and hole test"
+      command=(${avrdude[@]} -U flash:w:test_files/blink-mega2560+lext-test.hex)
+      execute "${command[@]}"
+      result [ $? == 0 ]
+
+      # Test binary, octal, decimal, hexadecimal and R number lists for I/O
+      declare -A numsys=([b]=binary [o]=octal [d]=decimal [h]=hexadecimal [R]=R)
+      for fmt in b o d h R; do
+        tmpfile="$tmp/app+data-m2560-$$.$fmt-txt"
+        resfile="$tmp/app+data-m2560-$$.raw"
+        specify="writing ${numsys[$fmt]} numbers"
         command=(${avrdude[@]}
-          -T '"erase flash; write flash -512 0xc0cac01a 0xcafe \"secret Coca .bin recipe\""'
+          -U test_files/urboot_m2560_1s_x16m0_115k2_uart0_rxe0_txe1_led+b7_pr_ee_ce.hex
+          -T '"write flash 0x3fd00 0xc0cac01a 0xcafe \"secret Coca Cola recipe\""'
           -U flash:w:test_files/cola-vending-machine.raw
-          -T '"write flash -1024 \"Hello World\""')
-        execute "${command[@]}" > $outfile
-        result [[ ! -s $outfile '&&' ! -s $logfile ]]
-      fi
-      if [[ $FLASH_SIZE -ge 131072 ]]; then
-        specify="extended address and hole test"
-        command=(${avrdude[@]} -U flash:w:test_files/blink-mega2560+lext-test.hex)
+          -U flash:r:$tmpfile:$fmt)
         execute "${command[@]}"
         result [ $? == 0 ]
-      fi
+
+        specify="reading and verifying ${numsys[$fmt]} numbers"
+        command=(${avrdude[@]}
+          -U flash:w:$tmpfile:$fmt
+          -U flash:r:$resfile:r)
+        execute "${command[@]}"
+        touch $tmpfile $resfile
+        result cmp -s $resfile test_files/expected-flash-m2560.raw
+        rm -f $tmpfile $resfile
+      done
+
+      specify="writing srec format"
+      tmpfile="$tmp/app+data-m2560-$$.srec"
+      command=(${avrdude[@]}
+        -U test_files/urboot_m2560_1s_x16m0_115k2_uart0_rxe0_txe1_led+b7_pr_ee_ce.hex
+        -T '"write flash 0x3fd00 0xc0cac01a 0xcafe \"secret Coca Cola recipe\""'
+        -U flash:w:test_files/cola-vending-machine.raw
+        -T '"config bod=*2v7"'
+        -U flash:r:$tmpfile:s)
+      execute "${command[@]}"
+      result [ $? == 0 ]
+
+      specify="reading and verifying srec format file"
+      command=(${avrdude[@]}
+        -U flash:w:$tmpfile:s
+        -U flash:v:test_files/expected-flash-m2560.raw:r)
+      execute "${command[@]}"
+      result [ $? == 0 ]
+      rm -f $tmpfile
     fi
 
     #####
