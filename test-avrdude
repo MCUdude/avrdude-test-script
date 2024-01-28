@@ -181,7 +181,7 @@ for (( p=0; p<$arraylength; p++ )); do
     #
     if [[ "$programmer" == -cdryrun && $FLASH_SIZE -eq 262144 ]]; then
       # Raw test
-      specify="cola-vending-machine.raw flash -T/-U write/verify"
+      specify="flash raw format -T/-U write/verify cola-vending-machine.raw"
       command=(${avrdude[@]}
         -T '"erase flash; write flash -512 0xc0cac01a 0xcafe \"secret Coca .bin recipe\""'
         -U flash:w:test_files/cola-vending-machine.raw
@@ -189,7 +189,7 @@ for (( p=0; p<$arraylength; p++ )); do
       execute "${command[@]}" > $outfile
       result [[ ! -s $outfile '&&' ! -s $logfile ]]
 
-      specify="extended address and hole test"
+      specify="flash extended address and hole test"
       command=(${avrdude[@]} -U flash:w:test_files/blink-mega2560+lext-test.hex)
       execute "${command[@]}"
       result [ $? == 0 ]
@@ -199,7 +199,7 @@ for (( p=0; p<$arraylength; p++ )); do
       for fmt in b o d h R; do
         tmpfile="$tmp/app+data-m2560-$$.$fmt-txt"
         resfile="$tmp/app+data-m2560-$$.raw"
-        specify="writing ${numsys[$fmt]} numbers"
+        specify="flash writing ${numsys[$fmt]} numbers"
         command=(${avrdude[@]}
           -U test_files/urboot_m2560_1s_x16m0_115k2_uart0_rxe0_txe1_led+b7_pr_ee_ce.hex
           -T '"write flash 0x3fd00 0xc0cac01a 0xcafe \"secret Coca Cola recipe\""'
@@ -208,7 +208,7 @@ for (( p=0; p<$arraylength; p++ )); do
         execute "${command[@]}"
         result [ $? == 0 ]
 
-        specify="reading and verifying ${numsys[$fmt]} numbers"
+        specify="flash reading and verifying ${numsys[$fmt]} numbers"
         command=(${avrdude[@]}
           -U flash:w:$tmpfile:$fmt
           -U flash:r:$resfile:r)
@@ -218,7 +218,7 @@ for (( p=0; p<$arraylength; p++ )); do
         rm -f $tmpfile $resfile
       done
 
-      specify="writing srec format"
+      specify="flash writing srec format"
       tmpfile="$tmp/app+data-m2560-$$.srec"
       command=(${avrdude[@]}
         -U test_files/urboot_m2560_1s_x16m0_115k2_uart0_rxe0_txe1_led+b7_pr_ee_ce.hex
@@ -229,7 +229,7 @@ for (( p=0; p<$arraylength; p++ )); do
       execute "${command[@]}"
       result [ $? == 0 ]
 
-      specify="reading and verifying srec format file"
+      specify="flash reading and verifying srec format file"
       command=(${avrdude[@]}
         -U flash:w:$tmpfile:s
         -U flash:v:test_files/expected-flash-m2560.raw:r)
@@ -243,10 +243,10 @@ for (( p=0; p<$arraylength; p++ )); do
     #
     if [[ $is_bootloader -ne 1 ]]; then
       if [ -n "$EE_SIZE" ]; then
-        specify="clear, set and read eesave fuse bit"
+        specify="fuse access: clear, set and read eesave fuse bit"
         command=(${avrdude[@]} -T '"config eesave=0; config eesave=1; config eesave"')
       else
-        specify="clear, set and read wdton fuse bit"
+        specify="fuse access: clear, set and read wdton fuse bit"
         command=(${avrdude[@]} -T '"config wdton=0; config wdton=1; config wdton"')
       fi
       execute "${command[@]}" > $outfile
@@ -255,7 +255,7 @@ for (( p=0; p<$arraylength; p++ )); do
       result [[ '"$fusebit"' == 1 '&&' ! -s $logfile ]]
 
       if [ -n "$EE_SIZE" ]; then
-        specify="set eesave fusebit to delete EEPROM on chip erase"
+        specify="fuse access: set eesave fusebit to delete EEPROM on chip erase"
         command=($avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -cdryrun -qq -T '"config eesave"' '|'
           ${avrdude[@]} -t)
         execute "${command[@]}" > $outfile
@@ -275,23 +275,23 @@ for (( p=0; p<$arraylength; p++ )); do
     #####
     # Flash test: a relatively difficult file with two code blocks and one data block with holes
     #
-    specify="holes_rjmp_loops_${FLASH_SIZE}B.hex flash -U write/verify"
+    specify="flash -U write/verify holes_rjmp_loops_${FLASH_SIZE}B.hex"
     command=(${avrdude[@]} -Uflash:w:test_files/holes_rjmp_loops_${FLASH_SIZE}B.hex)
     execute "${command[@]}"
     result [ $? == 0 ]
     if [ $? != 0 ]; then        # Not working? try a file without holes
-      specify="flash_for_bootloaders_rjmp_loops_${FLASH_SIZE}B.hex flash -U write/verify"
+      specify="flash -U write/verify flash_for_bootloaders_rjmp_loops_${FLASH_SIZE}B.hex"
       command=(${avrdude[@]} -Uflash:w:test_files/flash_for_bootloaders_rjmp_loops_${FLASH_SIZE}B.hex)
       execute "${command[@]}"
       result [ $? == 0 ]
     fi
 
-    specify="holes_rjmp_loops_${FLASH_SIZE}B.hex flash -T write/verify"
+    specify="flash -T write/verify holes_rjmp_loops_${FLASH_SIZE}B.hex"
     command=(${avrdude[@]} -T '"write flash 'test_files/holes_rjmp_loops_${FLASH_SIZE}B.hex:a'"')
     execute "${command[@]}" > $outfile
     result [[ ! -s $outfile '&&' ! -s $logfile ]]
     if [ $? != 0 ]; then        # Not working? try a file without holes
-      specify="flash_for_bootloaders_rjmp_loops_${FLASH_SIZE}B.hex flash -T write/verify"
+      specify="flash -T write/verify flash_for_bootloaders_rjmp_loops_${FLASH_SIZE}B.hex"
       command=(${avrdude[@]} -T '"write flash 'test_files/flash_for_bootloaders_rjmp_loops_${FLASH_SIZE}B.hex:a'"')
       execute "${command[@]}" > $outfile
       result [[ ! -s $outfile '&&' ! -s $logfile ]]
@@ -303,17 +303,17 @@ for (( p=0; p<$arraylength; p++ )); do
     if [ $check_eeprom -eq 1 ]; then
       # -U cannot cope with EEPROMs that are unable to set cleared bits but
       # the terminal can if the eesave fuse makes chip erase erase EEPROM
-      specify="check whether programmer can flip EEPROM 0s to 1s"
+      specify="eeprom check whether programmer can flip 0s to 1s"
       command=(${avrdude[@]}  -Ueeprom:w:0x55:m -Ueeprom:w:0xaa:m)
       execute "${command[@]}"
       result [ $? == 0 ]
       if [ $? == 0 ]; then      # OK, try a file with holes
-        specify="holes_pack_my_box_${EE_SIZE}B.hex eeprom -U write/verify"
+        specify="eeprom -U write/verify holes_pack_my_box_${EE_SIZE}B.hex"
         command=(${avrdude[@]} -Ueeprom:w:test_files/holes_pack_my_box_${EE_SIZE}B.hex)
         execute "${command[@]}"
         result [ $? == 0 ]
         if [ $? != 0 ]; then        # Not working? try a file without holes
-          specify="the_quick_brown_fox_${EE_SIZE}B.hex eeprom -U write/verify"
+          specify="eeprom -U write/verify the_quick_brown_fox_${EE_SIZE}B.hex"
           command=(${avrdude[@]} -Ueeprom:w:test_files/the_quick_brown_fox_${EE_SIZE}B.hex)
           execute "${command[@]}"
           result [ $? == 0 ]
@@ -322,7 +322,7 @@ for (( p=0; p<$arraylength; p++ )); do
         echo "# ... the next test may therefore take longer"
       fi
 
-      specify="holes_{the_five_boxing_wizards,pack_my_box}_${EE_SIZE}B.hex eeprom -T write/verify"
+      specify="eeprom -T write/verify holes_{the_five_boxing_wizards,pack_my_box}_${EE_SIZE}B.hex"
       command=(${avrdude[@]}
         -T '"write eeprom 'test_files/holes_the_five_boxing_wizards_${EE_SIZE}B.hex:a'"'
         -T flush
@@ -330,7 +330,7 @@ for (( p=0; p<$arraylength; p++ )); do
       execute "${command[@]}" > $outfile
       result [[ ! -s $outfile '&&' ! -s $logfile ]]
       if [ $? != 0 ]; then        # Not working? try a file without holes
-        specify="lorem_ipsum_${EE_SIZE}B.srec eeprom -T write/verify"
+        specify="eeprom -T write/verify lorem_ipsum_${EE_SIZE}B.srec"
         command=(${avrdude[@]} -T '"write eeprom 'test_files/lorem_ipsum_${EE_SIZE}B.srec:a'"')
         execute "${command[@]}" > $outfile
         result [[ ! -s $outfile '&&' ! -s $logfile ]]
@@ -356,7 +356,7 @@ for (( p=0; p<$arraylength; p++ )); do
     #
     if [[ -n "$USERSIG_SIZE" && $is_bootloader -ne 1 ]]; then
       tmpfile="$tmp/usersig_dump$$_${USERSIG_SIZE}B.bin"
-      specify="random_data_${USERSIG_SIZE}B.bin usersig -T/-U write/read"
+      specify="usersig -T/-U write/read random_data_${USERSIG_SIZE}B.bin"
       command=(${avrdude[@]}
         -T '"erase usersig; write usersig 'test_files/random_data_${USERSIG_SIZE}B.bin'"'
         -T flush
