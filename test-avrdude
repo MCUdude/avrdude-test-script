@@ -322,8 +322,11 @@ for (( p=0; p<$arraylength; p++ )); do
         echo "# ... the next test may therefore take longer"
       fi
 
-      specify="holes_the_five_boxing_wizards_${EE_SIZE}B.hex eeprom -T write/verify"
-      command=(${avrdude[@]} -T '"write eeprom 'test_files/holes_the_five_boxing_wizards_${EE_SIZE}B.hex:a'"')
+      specify="holes_{the_five_boxing_wizards,pack_my_box}_${EE_SIZE}B.hex eeprom -T write/verify"
+      command=(${avrdude[@]}
+        -T '"write eeprom 'test_files/holes_the_five_boxing_wizards_${EE_SIZE}B.hex:a'"'
+        -T flush
+        -T '"write eeprom 'test_files/holes_pack_my_box_${EE_SIZE}B.hex:a'"')
       execute "${command[@]}" > $outfile
       result [[ ! -s $outfile '&&' ! -s $logfile ]]
       if [ $? != 0 ]; then        # Not working? try a file without holes
