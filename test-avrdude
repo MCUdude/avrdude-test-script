@@ -4,6 +4,8 @@
 # authors Hans Eirik Bull and Stefan Rueger, 2024
 
 progname=$(basename "$0")
+tfiles=$(dirname "$0")/test_files
+tfiles=$(printf "%q" "$tfiles") # Quote directory string in case there are spaces etc
 
 avrdude_conf=''                 # Configuration for every run, eg, '-C path_to_avrdude_conf'
 delay=4                         # Some programmers need a delay between AVRDUDE calls
@@ -184,13 +186,13 @@ for (( p=0; p<$arraylength; p++ )); do
       specify="flash raw format -T/-U write/verify cola-vending-machine.raw"
       command=(${avrdude[@]}
         -T '"erase flash; write flash -512 0xc0cac01a 0xcafe \"secret Coca .bin recipe\""'
-        -U flash:w:test_files/cola-vending-machine.raw
+        -U flash:w:$tfiles/cola-vending-machine.raw
         -T '"write flash -1024 \"Hello World\""')
       execute "${command[@]}" > $outfile
       result [[ ! -s $outfile '&&' ! -s $logfile ]]
 
       specify="flash extended address and hole test"
-      command=(${avrdude[@]} -U flash:w:test_files/blink-mega2560+lext-test.hex)
+      command=(${avrdude[@]} -U flash:w:$tfiles/blink-mega2560+lext-test.hex)
       execute "${command[@]}"
       result [ $? == 0 ]
 
@@ -201,9 +203,9 @@ for (( p=0; p<$arraylength; p++ )); do
         resfile="$tmp/app+data-m2560-$$.raw"
         specify="flash writing ${numsys[$fmt]} numbers"
         command=(${avrdude[@]}
-          -U test_files/urboot_m2560_1s_x16m0_115k2_uart0_rxe0_txe1_led+b7_pr_ee_ce.hex
+          -U $tfiles/urboot_m2560_1s_x16m0_115k2_uart0_rxe0_txe1_led+b7_pr_ee_ce.hex
           -T '"write flash 0x3fd00 0xc0cac01a 0xcafe \"secret Coca Cola recipe\""'
-          -U flash:w:test_files/cola-vending-machine.raw
+          -U flash:w:$tfiles/cola-vending-machine.raw
           -U flash:r:$tmpfile:$fmt)
         execute "${command[@]}"
         result [ $? == 0 ]
@@ -214,16 +216,16 @@ for (( p=0; p<$arraylength; p++ )); do
           -U flash:r:$resfile:r)
         execute "${command[@]}"
         touch $tmpfile $resfile
-        result cmp -s $resfile test_files/expected-flash-m2560.raw
+        result cmp -s $resfile $tfiles/expected-flash-m2560.raw
         rm -f $tmpfile $resfile
       done
 
       specify="flash writing srec format"
       tmpfile="$tmp/app+data-m2560-$$.srec"
       command=(${avrdude[@]}
-        -U test_files/urboot_m2560_1s_x16m0_115k2_uart0_rxe0_txe1_led+b7_pr_ee_ce.hex
+        -U $tfiles/urboot_m2560_1s_x16m0_115k2_uart0_rxe0_txe1_led+b7_pr_ee_ce.hex
         -T '"write flash 0x3fd00 0xc0cac01a 0xcafe \"secret Coca Cola recipe\""'
-        -U flash:w:test_files/cola-vending-machine.raw
+        -U flash:w:$tfiles/cola-vending-machine.raw
         -T '"config bod=*2v7"'
         -U flash:r:$tmpfile:s)
       execute "${command[@]}"
@@ -232,7 +234,7 @@ for (( p=0; p<$arraylength; p++ )); do
       specify="flash reading and verifying srec format file"
       command=(${avrdude[@]}
         -U flash:w:$tmpfile:s
-        -U flash:v:test_files/expected-flash-m2560.raw:r)
+        -U flash:v:$tfiles/expected-flash-m2560.raw:r)
       execute "${command[@]}"
       result [ $? == 0 ]
       rm -f $tmpfile
@@ -276,23 +278,23 @@ for (( p=0; p<$arraylength; p++ )); do
     # Flash test: a relatively difficult file with two code blocks and one data block with holes
     #
     specify="flash -U write/verify holes_rjmp_loops_${FLASH_SIZE}B.hex"
-    command=(${avrdude[@]} -Uflash:w:test_files/holes_rjmp_loops_${FLASH_SIZE}B.hex)
+    command=(${avrdude[@]} -Uflash:w:$tfiles/holes_rjmp_loops_${FLASH_SIZE}B.hex)
     execute "${command[@]}"
     result [ $? == 0 ]
     if [ $? != 0 ]; then        # Not working? try a file without holes
       specify="flash -U write/verify flash_for_bootloaders_rjmp_loops_${FLASH_SIZE}B.hex"
-      command=(${avrdude[@]} -Uflash:w:test_files/flash_for_bootloaders_rjmp_loops_${FLASH_SIZE}B.hex)
+      command=(${avrdude[@]} -Uflash:w:$tfiles/flash_for_bootloaders_rjmp_loops_${FLASH_SIZE}B.hex)
       execute "${command[@]}"
       result [ $? == 0 ]
     fi
 
     specify="flash -T write/verify holes_rjmp_loops_${FLASH_SIZE}B.hex"
-    command=(${avrdude[@]} -T '"write flash 'test_files/holes_rjmp_loops_${FLASH_SIZE}B.hex:a'"')
+    command=(${avrdude[@]} -T '"write flash '$tfiles/holes_rjmp_loops_${FLASH_SIZE}B.hex:a'"')
     execute "${command[@]}" > $outfile
     result [[ ! -s $outfile '&&' ! -s $logfile ]]
     if [ $? != 0 ]; then        # Not working? try a file without holes
       specify="flash -T write/verify flash_for_bootloaders_rjmp_loops_${FLASH_SIZE}B.hex"
-      command=(${avrdude[@]} -T '"write flash 'test_files/flash_for_bootloaders_rjmp_loops_${FLASH_SIZE}B.hex:a'"')
+      command=(${avrdude[@]} -T '"write flash '$tfiles/flash_for_bootloaders_rjmp_loops_${FLASH_SIZE}B.hex:a'"')
       execute "${command[@]}" > $outfile
       result [[ ! -s $outfile '&&' ! -s $logfile ]]
     fi
@@ -309,12 +311,12 @@ for (( p=0; p<$arraylength; p++ )); do
       result [ $? == 0 ]
       if [ $? == 0 ]; then      # OK, try a file with holes
         specify="eeprom -U write/verify holes_pack_my_box_${EE_SIZE}B.hex"
-        command=(${avrdude[@]} -Ueeprom:w:test_files/holes_pack_my_box_${EE_SIZE}B.hex)
+        command=(${avrdude[@]} -Ueeprom:w:$tfiles/holes_pack_my_box_${EE_SIZE}B.hex)
         execute "${command[@]}"
         result [ $? == 0 ]
         if [ $? != 0 ]; then        # Not working? try a file without holes
           specify="eeprom -U write/verify the_quick_brown_fox_${EE_SIZE}B.hex"
-          command=(${avrdude[@]} -Ueeprom:w:test_files/the_quick_brown_fox_${EE_SIZE}B.hex)
+          command=(${avrdude[@]} -Ueeprom:w:$tfiles/the_quick_brown_fox_${EE_SIZE}B.hex)
           execute "${command[@]}"
           result [ $? == 0 ]
         fi
@@ -324,14 +326,14 @@ for (( p=0; p<$arraylength; p++ )); do
 
       specify="eeprom -T write/verify holes_{the_five_boxing_wizards,pack_my_box}_${EE_SIZE}B.hex"
       command=(${avrdude[@]}
-        -T '"write eeprom 'test_files/holes_the_five_boxing_wizards_${EE_SIZE}B.hex:a'"'
+        -T '"write eeprom '$tfiles/holes_the_five_boxing_wizards_${EE_SIZE}B.hex:a'"'
         -T flush
-        -T '"write eeprom 'test_files/holes_pack_my_box_${EE_SIZE}B.hex:a'"')
+        -T '"write eeprom '$tfiles/holes_pack_my_box_${EE_SIZE}B.hex:a'"')
       execute "${command[@]}" > $outfile
       result [[ ! -s $outfile '&&' ! -s $logfile ]]
       if [ $? != 0 ]; then        # Not working? try a file without holes
         specify="eeprom -T write/verify lorem_ipsum_${EE_SIZE}B.srec"
-        command=(${avrdude[@]} -T '"write eeprom 'test_files/lorem_ipsum_${EE_SIZE}B.srec:a'"')
+        command=(${avrdude[@]} -T '"write eeprom '$tfiles/lorem_ipsum_${EE_SIZE}B.srec:a'"')
         execute "${command[@]}" > $outfile
         result [[ ! -s $outfile '&&' ! -s $logfile ]]
       fi
@@ -341,12 +343,12 @@ for (( p=0; p<$arraylength; p++ )); do
     # Chip erase and verify
     #
     specify="chip erase and spot check flash is actually erased"
-    command=(${avrdude[@]} -e -Uflash:v:test_files/holes_0xff_${FLASH_SIZE}B.hex)
+    command=(${avrdude[@]} -e -Uflash:v:$tfiles/holes_0xff_${FLASH_SIZE}B.hex)
     execute "${command[@]}"
     result [ $? == 0 ]
     if [[ $? == 0 && $check_eeprom -eq 1 ]]; then
       specify="spot check eeprom is erased, too"
-      command=(${avrdude[@]} -Ueeprom:v:test_files/holes_0xff_${EE_SIZE}B.hex)
+      command=(${avrdude[@]} -Ueeprom:v:$tfiles/holes_0xff_${EE_SIZE}B.hex)
       execute "${command[@]}"
       result [ $? == 0 ]
     fi
@@ -358,16 +360,16 @@ for (( p=0; p<$arraylength; p++ )); do
       tmpfile="$tmp/usersig_dump$$_${USERSIG_SIZE}B.bin"
       specify="usersig -T/-U write/read random_data_${USERSIG_SIZE}B.bin"
       command=(${avrdude[@]}
-        -T '"erase usersig; write usersig 'test_files/random_data_${USERSIG_SIZE}B.bin'"'
+        -T '"erase usersig; write usersig '$tfiles/random_data_${USERSIG_SIZE}B.bin'"'
         -T flush
         -U usersig:r:$tmpfile:r
         -U usersig:v:$tmpfile:r
         -T '"erase usersig"'
         -T flush
-        -U usersig:v:test_files/0xff_${USERSIG_SIZE}B.hex:i)
+        -U usersig:v:$tfiles/0xff_${USERSIG_SIZE}B.hex:i)
       execute "${command[@]}" >$outfile
       touch "$tmpfile"
-      result [[ ! -s $outfile '&&' ! -s $logfile ]] '&&' cmp -s "test_files/random_data_${USERSIG_SIZE}B.bin" "$tmpfile"
+      result [[ ! -s $outfile '&&' ! -s $logfile ]] '&&' cmp -s "$tfiles/random_data_${USERSIG_SIZE}B.bin" "$tmpfile"
       rm -f "$tmpfile"
     fi
 
