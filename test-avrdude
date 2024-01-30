@@ -167,7 +167,7 @@ for (( p=0; p<$arraylength; p++ )); do
     EE_SIZE=$(${avrdude[@]} -cdryrun -T 'part -m' 2>/dev/null | grep eeprom | awk '{print $2}')
 
     if [[ -z "$FLASH_SIZE" ]]; then
-      echo "No flash? Skipping ${pgm_and_target[$p]} test"
+      echo "Cannot detect flash; check that \"${pgm_and_target[$p]}\" are valid avrdude options; skipping this test"
       continue
     fi
 
@@ -185,9 +185,9 @@ for (( p=0; p<$arraylength; p++ )); do
     # Should we test fuses?
     fusetest=1
     # Isolate part (assumes either -p part or -ppart)
-    part=$(echo ${pgm_and_target[$p]} | sed 's/  *\([^-]\)/\1/g' | tr \  \\n | grep ^-p)
+    part=$(echo ${pgm_and_target[$p]} | sed 's/  *\([^-]\)/\1/g' | tr \  \\n | grep ^-p | tr A-Z a-z)
     if [ -n "$part" ]; then
-      [[ "${nofusetest[@]}" =~ "${part,,}/" ]] && fusetest=0
+      [[ "${nofusetest[@]}" =~ "$part/" ]] && fusetest=0
     fi
 
     # Should EEPROM test be carried out?
@@ -268,17 +268,16 @@ for (( p=0; p<$arraylength; p++ )); do
         command=(${avrdude[@]} -T '"config wdton=0; config wdton=1; config wdton"')
       fi
       execute "${command[@]}" > $outfile
-      fusebit=$(awk '{print $4}' < $outfile)
-      rm $outfile
-      result [[ '"$fusebit"' == 1 '&&' ! -s $logfile ]]
+      fusebit=$(grep ^config $outfile | awk '{print $4}')
+      sed -i -e/^config/d -e/"> "/d $outfile
+      result [[ '"$fusebit"' == 1 '&&' ! -s $outfile  '&&' ! -s $logfile ]]
 
       if [ -n "$EE_SIZE" ]; then
         specify="fuse access: set eesave fusebit to delete EEPROM on chip erase"
-        command=($avrdude_bin $avrdude_conf -qq ${pgm_and_target[$p]} -cdryrun -qq -T '"config eesave"' '|'
-          ${avrdude[@]} -t)
+        command=(${avrdude[@]} -T '"config eesave=ee*erased"')
         execute "${command[@]}" > $outfile
-        rm $outfile
-        result [[ ! -s $logfile ]]
+        sed -i -e/^config/d -e/"> "/d $outfile
+        result [[ ! -s $outfile  '&&' ! -s $logfile ]]
       fi
     fi
 
@@ -362,7 +361,7 @@ for (( p=0; p<$arraylength; p++ )); do
     command=(${avrdude[@]} -e -Uflash:v:$tfiles/holes_flash_0xff_${FLASH_SIZE}B.hex)
     execute "${command[@]}"
     result [ $? == 0 ]
-    if [[ $? == 0 && $check_eeprom -eq 1 ]]; then
+    if [[ $? == 0 && $check_eeprom -eq 1 && $is_bootloader -eq 0 ]]; then
       specify="spot check eeprom is erased, too"
       command=(${avrdude[@]} -Ueeprom:v:$tfiles/holes_eeprom_0xff_${EE_SIZE}B.hex)
       execute "${command[@]}"
